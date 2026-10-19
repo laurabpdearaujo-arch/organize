@@ -1,5 +1,18 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  check,
+  date,
+  index,
+  jsonb,
+  numeric,
+  pgTable,
+  smallint,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { authUsers } from "drizzle-orm/supabase";
 import type { Recurrence } from "@/lib/calendar/recurrence";
 
@@ -77,5 +90,83 @@ export const eventExceptions = pgTable(
   (t) => [
     uniqueIndex("event_exceptions_event_original_uq").on(t.eventId, t.originalStart),
     index("event_exceptions_user_idx").on(t.userId),
+  ],
+).enableRLS();
+
+// ---------------- Hábitos ----------------
+
+export const habits = pgTable(
+  "habits",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: ownerId(),
+    name: text("name").notNull(),
+    /** "build" = desenvolver · "reduce" = reduzir (sempre com limite diário) */
+    direction: text("direction").$type<"build" | "reduce">().notNull(),
+    /** "boolean" = sim/não · "quantity" · "duration" (minutos) */
+    measure: text("measure").$type<"boolean" | "quantity" | "duration">().notNull(),
+    unit: text("unit"),
+    category: text("category").notNull().default("Outros"),
+    color: text("color").notNull().default("violet"),
+    /** Dia (no fuso da usuária) em que o hábito começou a valer. */
+    createdOn: date("created_on", { mode: "string" }).notNull(),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [index("habits_user_idx").on(t.userId)],
+).enableRLS();
+
+/** Versões da meta: cada mudança vale a partir de uma data, sem alterar o passado. */
+export const habitGoals = pgTable(
+  "habit_goals",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: ownerId(),
+    habitId: uuid("habit_id")
+      .notNull()
+      .references(() => habits.id, { onDelete: "cascade" }),
+    effectiveFrom: date("effective_from", { mode: "string" }).notNull(),
+    scheduleType: text("schedule_type").$type<"days" | "weekly">().notNull(),
+    weekdays: smallint("weekdays").array().notNull().default(sql`'{}'::smallint[]`),
+    timesPerWeek: smallint("times_per_week"),
+    target: numeric("target", { mode: "number" }),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("habit_goals_habit_from_uq").on(t.habitId, t.effectiveFrom)],
+).enableRLS();
+
+/** Períodos pausados (inclusive). end_date nulo = pausado até agora. */
+export const habitPauses = pgTable(
+  "habit_pauses",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: ownerId(),
+    habitId: uuid("habit_id")
+      .notNull()
+      .references(() => habits.id, { onDelete: "cascade" }),
+    startDate: date("start_date", { mode: "string" }).notNull(),
+    endDate: date("end_date", { mode: "string" }),
+    ...timestamps,
+  },
+  (t) => [index("habit_pauses_habit_idx").on(t.habitId)],
+).enableRLS();
+
+/** Um registro por hábito por dia. Apagar o registro = dia sem registro. */
+export const habitLogs = pgTable(
+  "habit_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: ownerId(),
+    habitId: uuid("habit_id")
+      .notNull()
+      .references(() => habits.id, { onDelete: "cascade" }),
+    date: date("date", { mode: "string" }).notNull(),
+    value: numeric("value", { mode: "number" }).notNull(),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("habit_logs_habit_date_uq").on(t.habitId, t.date),
+    index("habit_logs_user_date_idx").on(t.userId, t.date),
+    check("habit_logs_value_nonneg", sql`${t.value} >= 0`),
   ],
 ).enableRLS();

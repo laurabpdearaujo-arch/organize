@@ -22,6 +22,13 @@
       "when": 1792372876024,
       "tag": "0002_calendar",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792375491382,
+      "tag": "0003_habits",
+      "breakpoints": true
     }
   ]
 }

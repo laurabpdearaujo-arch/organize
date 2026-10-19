@@ -19,7 +19,7 @@ export type DialogState =
       series: FormValues;
     };
 
-const WEEKDAY_LABELS = ["D", "S", "T", "Q", "Q", "S", "S"];
+const WEEKDAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const WEEKDAY_NAMES = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
 const FREQ_UNIT: Record<string, [string, string]> = {
   daily: ["dia", "dias"],
@@ -212,7 +212,7 @@ export function EventDialog({
                   {values.repeat === "weekly" && (
                     <div>
                       <p className={labelCls}>Nos dias</p>
-                      <div className="flex gap-1">
+                      <div className="flex flex-wrap gap-1">
                         {WEEKDAY_LABELS.map((l, d) => {
                           const on = values.byWeekday.includes(d);
                           return (
@@ -222,7 +222,7 @@ export function EventDialog({
                               aria-label={WEEKDAY_NAMES[d]}
                               aria-pressed={on}
                               onClick={() => toggleWeekday(d)}
-                              className={`size-8 rounded-full text-xs font-medium ${on ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
+                              className={`rounded-full px-2.5 py-1.5 text-xs font-medium ${on ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
                             >
                               {l}
                             </button>

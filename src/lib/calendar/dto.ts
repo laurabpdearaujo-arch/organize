@@ -33,8 +33,6 @@ export type CalendarEventDTO = {
   };
 };
 
-export type ActionResult = { ok: true } | { ok: false; error: string };
-
 /** "AAAA-MM-DD" do instante, no fuso indicado. */
 export function localDate(date: Date, tz: string) {
   return format(new TZDate(date.getTime(), tz), "yyyy-MM-dd");

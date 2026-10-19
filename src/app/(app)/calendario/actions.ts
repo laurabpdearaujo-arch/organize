@@ -1,7 +1,7 @@
 "use server";
 
-import { unstable_rethrow } from "next/navigation";
 import { z } from "zod";
+import { runAction, type ActionResult } from "@/lib/action";
 import { getCurrentUser } from "@/lib/auth";
 import {
   createSeries,
@@ -12,19 +12,8 @@ import {
 } from "@/lib/calendar/repository";
 import { eventInputSchema, inputToSeriesValues, timingChanged } from "@/lib/calendar/schemas";
 import { parseLocalDate, zonedInstant } from "@/lib/calendar/recurrence";
-import type { ActionResult } from "@/lib/calendar/dto";
-
 const NOT_FOUND: ActionResult = { ok: false, error: "Evento não encontrado. Recarregue a página." };
-
-async function run(fn: () => Promise<ActionResult>): Promise<ActionResult> {
-  try {
-    return await fn();
-  } catch (e) {
-    unstable_rethrow(e); // redirect() (sessão expirada) precisa continuar subindo
-    console.error("[calendario]", e);
-    return { ok: false, error: "Não foi possível salvar. Tente novamente." };
-  }
-}
+const run = (fn: () => Promise<ActionResult>) => runAction("calendario", fn);
 
 const saveSchema = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal("create"), input: z.unknown() }),
