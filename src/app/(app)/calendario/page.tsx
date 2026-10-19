@@ -1,16 +1,20 @@
-import { CalendarDays } from "lucide-react";
+import { Suspense } from "react";
 import { PageHeader } from "@/components/page-header";
-import { EmptyState } from "@/components/empty-state";
+import { getCurrentUser } from "@/lib/auth";
+import { CalendarClient } from "./calendar-client";
 
 export default function CalendarioPage() {
   return (
     <>
       <PageHeader title="Calendário" subtitle="Compromissos, sessões de estudo e prazos" />
-      <EmptyState
-        icon={CalendarDays}
-        title="Calendário em construção"
-        description="Na Etapa 2 você poderá criar eventos únicos e recorrentes e ver por dia, semana, mês ou lista."
-      />
+      <Suspense fallback={<div className="h-[720px] animate-pulse rounded-2xl border border-border bg-card" />}>
+        <CalendarSection />
+      </Suspense>
     </>
   );
+}
+
+async function CalendarSection() {
+  const user = await getCurrentUser();
+  return <CalendarClient timezone={user.timezone} />;
 }

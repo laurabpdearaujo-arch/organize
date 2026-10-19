@@ -15,6 +15,13 @@
       "when": 1792279267113,
       "tag": "0001_revoke_public_roles",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792372876024,
+      "tag": "0002_calendar",
+      "breakpoints": true
     }
   ]
 }
