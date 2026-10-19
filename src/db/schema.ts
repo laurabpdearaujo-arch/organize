@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  bigint,
   boolean,
   check,
   date,
@@ -169,4 +170,115 @@ export const habitLogs = pgTable(
     index("habit_logs_user_date_idx").on(t.userId, t.date),
     check("habit_logs_value_nonneg", sql`${t.value} >= 0`),
   ],
+).enableRLS();
+
+// ---------------- Finanças ----------------
+// Valores sempre em CENTAVOS inteiros (bigint) para evitar erros de arredondamento.
+
+/** Conta corrente, poupança, dinheiro, investimento ou cartão de crédito. */
+export const accounts = pgTable(
+  "accounts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: ownerId(),
+    name: text("name").notNull(),
+    type: text("type").$type<"checking" | "savings" | "cash" | "investment" | "credit_card">().notNull(),
+    currency: text("currency").$type<"BRL" | "USD" | "EUR">().notNull().default("BRL"),
+    initialBalanceCents: bigint("initial_balance_cents", { mode: "number" }).notNull().default(0),
+    color: text("color").notNull().default("violet"),
+    /** Cartão: dia do fechamento e do vencimento da fatura. */
+    closingDay: smallint("closing_day"),
+    dueDay: smallint("due_day"),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [index("accounts_user_idx").on(t.userId)],
+).enableRLS();
+
+export const categories = pgTable(
+  "categories",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: ownerId(),
+    name: text("name").notNull(),
+    kind: text("kind").$type<"expense" | "income">().notNull(),
+    color: text("color").notNull().default("gray"),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("categories_user_kind_name_uq").on(t.userId, t.kind, t.name)],
+).enableRLS();
+
+/**
+ * Lançamento. Transferência = uma linha com conta de origem (account_id) e destino (to_account_id);
+ * transferências nunca entram em receitas/despesas (pagamento de fatura é transferência).
+ */
+export const transactions = pgTable(
+  "transactions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: ownerId(),
+    type: text("type").$type<"income" | "expense" | "transfer">().notNull(),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "no action" }),
+    toAccountId: uuid("to_account_id").references(() => accounts.id, { onDelete: "no action" }),
+    amountCents: bigint("amount_cents", { mode: "number" }).notNull(),
+    /** Data do lançamento (para compras no cartão: data da compra). */
+    date: date("date", { mode: "string" }).notNull(),
+    description: text("description").notNull(),
+    categoryId: uuid("category_id").references(() => categories.id, { onDelete: "set null" }),
+    paymentMethod: text("payment_method")
+      .$type<"pix" | "debit" | "credit" | "cash" | "boleto" | "transfer" | "auto_debit" | "other">()
+      .notNull()
+      .default("other"),
+    notes: text("notes"),
+    /** Impressão digital para evitar importar o mesmo lançamento duas vezes (importação de extratos). */
+    fingerprint: text("fingerprint"),
+    ...timestamps,
+  },
+  (t) => [
+    index("transactions_user_date_idx").on(t.userId, t.date),
+    index("transactions_account_idx").on(t.accountId),
+    uniqueIndex("transactions_user_fingerprint_uq").on(t.userId, t.fingerprint),
+    check("transactions_amount_positive", sql`${t.amountCents} > 0`),
+    check(
+      "transactions_transfer_shape",
+      sql`(${t.type} = 'transfer') = (${t.toAccountId} is not null) and (${t.toAccountId} is null or ${t.toAccountId} <> ${t.accountId})`,
+    ),
+  ],
+).enableRLS();
+
+/** Metas de longo prazo (reserva, viagem…). O progresso é a soma dos aportes. */
+export const savingsGoals = pgTable(
+  "savings_goals",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: ownerId(),
+    name: text("name").notNull(),
+    targetCents: bigint("target_cents", { mode: "number" }).notNull(),
+    currency: text("currency").$type<"BRL" | "USD" | "EUR">().notNull().default("BRL"),
+    deadline: date("deadline", { mode: "string" }),
+    color: text("color").notNull().default("violet"),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [index("savings_goals_user_idx").on(t.userId), check("savings_goals_target_positive", sql`${t.targetCents} > 0`)],
+).enableRLS();
+
+/** Aporte (positivo) ou retirada (negativo) de uma meta. */
+export const goalContributions = pgTable(
+  "goal_contributions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: ownerId(),
+    goalId: uuid("goal_id")
+      .notNull()
+      .references(() => savingsGoals.id, { onDelete: "cascade" }),
+    amountCents: bigint("amount_cents", { mode: "number" }).notNull(),
+    date: date("date", { mode: "string" }).notNull(),
+    note: text("note"),
+    ...timestamps,
+  },
+  (t) => [index("goal_contributions_goal_idx").on(t.goalId)],
 ).enableRLS();

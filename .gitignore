@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# documentos pessoais (faturas, extratos, PDFs de estudo) nunca vao para o Git
+*.pdf
+*.ofx
+*.csv
