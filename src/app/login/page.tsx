@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Layers } from "lucide-react";
+import { Monogram } from "@/components/monogram";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LoginForm } from "./login-form";
 
@@ -11,9 +11,7 @@ export default function LoginPage() {
       <ThemeToggle className="absolute right-4 top-4" />
       <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-sm">
         <div className="mb-6 flex items-center gap-3">
-          <span className="flex size-10 items-center justify-center rounded-full bg-primary-soft text-primary">
-            <Layers className="size-5" />
-          </span>
+          <Monogram className="h-12 w-auto shrink-0 text-primary" weight={1} />
           <div>
             <h1 className="font-semibold">Organize</h1>
             <p className="text-sm text-muted-foreground">Central pessoal</p>

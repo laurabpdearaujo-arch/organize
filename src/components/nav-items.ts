@@ -20,11 +20,11 @@ export type NavItem = {
 export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Painel", icon: LayoutDashboard, mobilePrimary: true },
   { href: "/calendario", label: "Calendário", icon: CalendarDays, mobilePrimary: true },
+  { href: "/tarefas", label: "Tarefas", icon: ListTodo, mobilePrimary: true },
   { href: "/estudos", label: "Estudos", icon: GraduationCap, mobilePrimary: true },
-  { href: "/habitos", label: "Hábitos", icon: Target, mobilePrimary: true },
   { href: "/financas", label: "Finanças", icon: Wallet },
+  { href: "/habitos", label: "Hábitos", icon: Target },
   { href: "/leituras", label: "Leituras e Filmes", icon: BookOpen },
-  { href: "/tarefas", label: "Tarefas", icon: ListTodo },
 ];
 
 export function isActive(pathname: string, href: string) {

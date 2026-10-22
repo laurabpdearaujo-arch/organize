@@ -4,30 +4,32 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #f6f6f9;
-  --foreground: #1c1b22;
+  /* Rosé queimado (paleta de cores_e_nova_aba.pdf; primário escurecido para contraste ≥ 4,5 com branco) */
+  --background: #fbf6f7;
+  --foreground: #251c1f;
   --card: #ffffff;
-  --muted: #f0eff5;
-  --muted-foreground: #6b6a78;
-  --border: #e6e5ee;
-  --primary: #5b4fd6;
+  --muted: #f5ebed;
+  --muted-foreground: #76666b;
+  --border: #eedfe2;
+  --primary: #a05a61;
   --primary-foreground: #ffffff;
-  --primary-soft: #ecebfb;
+  --primary-soft: #f7e6e8;
   --success: #1f8a5b;
   --danger: #d33c4a;
   --warning: #c27a12;
 }
 
 .dark {
-  --background: #111116;
-  --foreground: #ececf1;
-  --card: #1a1a21;
-  --muted: #23232c;
-  --muted-foreground: #9a99a8;
-  --border: #2c2c37;
-  --primary: #8b80f0;
-  --primary-foreground: #ffffff;
-  --primary-soft: #2a2747;
+  --background: #161214;
+  --foreground: #f1e8eb;
+  --card: #1f191b;
+  --muted: #2a2125;
+  --muted-foreground: #a7959b;
+  --border: #3a2d32;
+  /* no escuro o rosé é claro, então o texto em cima dele é escuro */
+  --primary: #e3a3b0;
+  --primary-foreground: #2a1519;
+  --primary-soft: #3a262c;
   --success: #4cc38a;
   --danger: #f06b77;
   --warning: #e5a33b;
