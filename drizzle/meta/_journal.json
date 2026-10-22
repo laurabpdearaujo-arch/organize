@@ -78,6 +78,20 @@
       "when": 1792678840041,
       "tag": "0010_studies",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792679536751,
+      "tag": "0011_study_logs",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792689670017,
+      "tag": "0012_study_groups",
+      "breakpoints": true
     }
   ]
 }

@@ -464,6 +464,8 @@ export const studyItems = pgTable(
     position: smallint("position").notNull().default(0),
     code: text("code"),
     title: text("title").notNull(),
+    /** Tema/subtema: agrupa conteúdos e não entra na conta do progresso, mesmo vazio. */
+    isGroup: boolean("is_group").notNull().default(false),
     description: text("description"),
     durationMinutes: smallint("duration_minutes"),
     tags: text("tags").array().notNull().default(sql`'{}'::text[]`),
@@ -478,5 +480,29 @@ export const studyItems = pgTable(
   (t) => [
     index("study_items_plan_idx").on(t.planId),
     index("study_items_user_planned_idx").on(t.userId, t.plannedDate),
+  ],
+).enableRLS();
+
+/** Registro de uma sessão de estudo de um conteúdo: tempo, questões, dificuldades e erros. */
+export const studyLogs = pgTable(
+  "study_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: ownerId(),
+    itemId: uuid("item_id")
+      .notNull()
+      .references(() => studyItems.id, { onDelete: "cascade" }),
+    date: date("date", { mode: "string" }).notNull(),
+    minutes: smallint("minutes"),
+    questionsDone: smallint("questions_done"),
+    questionsCorrect: smallint("questions_correct"),
+    difficulties: text("difficulties"),
+    mistakes: text("mistakes"),
+    ...timestamps,
+  },
+  (t) => [
+    index("study_logs_item_idx").on(t.itemId),
+    index("study_logs_user_date_idx").on(t.userId, t.date),
+    check("study_logs_correct_le_done", sql`${t.questionsCorrect} is null or (${t.questionsDone} is not null and ${t.questionsCorrect} <= ${t.questionsDone})`),
   ],
 ).enableRLS();

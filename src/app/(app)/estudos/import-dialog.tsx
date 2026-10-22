@@ -6,14 +6,24 @@ import { ChevronRight, FileUp } from "lucide-react";
 import { Modal, inputCls, labelCls, primaryBtn, secondaryBtn } from "@/components/modal";
 import { EVENT_COLORS, type EventColor } from "@/lib/calendar/colors";
 import { countLeaves, type OutlineNode, type OutlinePlan } from "@/lib/studies/outline";
+import { normKey } from "@/lib/studies/merge";
 import { importStudyPlans } from "./actions";
 
 const COLORS = Object.keys(EVENT_COLORS) as EventColor[];
 
-type Draft = { include: boolean; name: string; color: EventColor; plan: OutlinePlan };
+/** targetPlanId preenchido = atualizar esse plano (mantém status, datas e registros). */
+type Draft = { include: boolean; name: string; color: EventColor; plan: OutlinePlan; targetPlanId: string };
 
 /** Envia o PDF, mostra como ficou a divisão e cria os planos escolhidos. */
-export function ImportDialog({ onClose, onImported }: { onClose: () => void; onImported: (planId: string) => void }) {
+export function ImportDialog({
+  existingPlans,
+  onClose,
+  onImported,
+}: {
+  existingPlans: { id: string; name: string }[];
+  onClose: () => void;
+  onImported: (planId: string, message: string) => void;
+}) {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
@@ -43,7 +53,16 @@ export function ImportDialog({ onClose, onImported }: { onClose: () => void; onI
       }
       setFileName(body.fileName);
       setWarnings(body.warnings ?? []);
-      setDrafts((body.plans as OutlinePlan[]).map((p, i) => ({ include: true, name: p.name, color: COLORS[i % COLORS.length], plan: p })));
+      setDrafts(
+        (body.plans as OutlinePlan[]).map((p, i) => ({
+          include: true,
+          name: p.name,
+          color: COLORS[i % COLORS.length],
+          plan: p,
+          // plano com o mesmo nome já existe → por padrão, atualizar (sem perder progresso)
+          targetPlanId: existingPlans.find((e) => normKey(e.name) === normKey(p.name))?.id ?? "",
+        })),
+      );
     } catch {
       setError("Falha de conexão ao enviar o arquivo.");
     } finally {
@@ -55,12 +74,23 @@ export function ImportDialog({ onClose, onImported }: { onClose: () => void; onI
     if (!drafts) return;
     setError(null);
     startTransition(async () => {
+      const chosen = drafts.filter((d) => d.include);
       const r = await importStudyPlans({
         fileName,
-        plans: drafts.filter((d) => d.include).map((d) => ({ name: d.name, color: d.color, nodes: d.plan.nodes })),
+        plans: chosen.map((d) => ({ name: d.name, color: d.color, nodes: d.plan.nodes, targetPlanId: d.targetPlanId || null })),
       });
-      if (r.ok && r.planIds?.length) onImported(r.planIds[0]);
-      else if (!r.ok) setError(r.error);
+      if (!r.ok) {
+        setError(r.error);
+        return;
+      }
+      const created = chosen.filter((d) => !d.targetPlanId).length;
+      const parts = [
+        created ? `${created} plano(s) criado(s)` : "",
+        ...(r.merged ?? []).map(
+          (m) => `“${m.name}” atualizado: ${m.added} item(ns) novo(s), ${m.kept} mantido(s) com seu progresso${m.missing ? `, ${m.missing} não estão mais no PDF (mantidos no fim do plano; exclua se quiser)` : ""}`,
+        ),
+      ].filter(Boolean);
+      if (r.planIds?.length) onImported(r.planIds[0], `${parts.join(". ")}.`);
     });
   }
 
@@ -100,10 +130,24 @@ export function ImportDialog({ onClose, onImported }: { onClose: () => void; onI
                   <div className="flex items-start gap-3">
                     <input type="checkbox" className="mt-2 size-4" checked={d.include} onChange={(e) => set(i, { include: e.target.checked })} aria-label="Importar este plano" />
                     <div className="min-w-0 flex-1 space-y-2">
-                      <div>
-                        <label className={labelCls} htmlFor={`pname-${i}`}>Nome do plano</label>
-                        <input id={`pname-${i}`} className={inputCls} value={d.name} onChange={(e) => set(i, { name: e.target.value })} maxLength={120} />
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <div>
+                          <label className={labelCls} htmlFor={`ptarget-${i}`}>Destino</label>
+                          <select id={`ptarget-${i}`} className={inputCls} value={d.targetPlanId} onChange={(e) => set(i, { targetPlanId: e.target.value })}>
+                            <option value="">Criar novo plano</option>
+                            {existingPlans.map((e) => <option key={e.id} value={e.id}>Atualizar “{e.name}”</option>)}
+                          </select>
+                        </div>
+                        {!d.targetPlanId && (
+                          <div>
+                            <label className={labelCls} htmlFor={`pname-${i}`}>Nome do plano</label>
+                            <input id={`pname-${i}`} className={inputCls} value={d.name} onChange={(e) => set(i, { name: e.target.value })} maxLength={120} />
+                          </div>
+                        )}
                       </div>
+                      {d.targetPlanId && (
+                        <p className="text-xs text-muted-foreground">Só o que é novo será criado; status, datas e registros do plano continuam.</p>
+                      )}
                       <div className="flex flex-wrap items-center gap-2">
                         {COLORS.map((col) => (
                           <button key={col} type="button" aria-label={EVENT_COLORS[col].label} aria-pressed={d.color === col} onClick={() => set(i, { color: col })} className={`size-5 rounded-full ring-offset-2 ring-offset-[var(--card)] ${d.color === col ? "ring-2 ring-foreground" : ""}`} style={{ backgroundColor: EVENT_COLORS[col].hex }} />

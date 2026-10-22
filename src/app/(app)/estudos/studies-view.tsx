@@ -1,14 +1,16 @@
 "use client";
 
 import { useMemo, useOptimistic, useState, useTransition } from "react";
-import { CalendarDays, ChevronDown, ChevronRight, FileUp, GraduationCap, MoreHorizontal } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronRight, FileUp, GraduationCap, MoreHorizontal, Pencil, Plus } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { Modal, inputCls, labelCls, primaryBtn, secondaryBtn } from "@/components/modal";
 import { EVENT_COLORS, colorHex, type EventColor } from "@/lib/calendar/colors";
 import type { PlanList } from "@/lib/studies/repository";
-import { buildTree, leavesOf, progress, stats, STATUS_LABEL, type StudyStatus, type TreeNode } from "@/lib/studies/progress";
+import { buildTree, isGroup, leavesOf, progress, stats, STATUS_LABEL, type StudyStatus, type TreeNode } from "@/lib/studies/progress";
 import { archiveStudyPlan, deleteStudyPlan, setStudyStatusMany, updateStudyItem, updateStudyPlan } from "./actions";
+import { AddItemDialog } from "./add-item-dialog";
 import { ImportDialog } from "./import-dialog";
+import { ItemDialog, logTotals, minutesText } from "./item-dialog";
 
 type Plan = PlanList[number];
 type Item = Plan["items"][number];
@@ -33,6 +35,7 @@ export function StudiesView({ plans, today, initialPlanId }: { plans: PlanList; 
     (initialPlanId && plans.some((p) => p.id === initialPlanId) ? initialPlanId : null) ?? active[0]?.id ?? null,
   );
   const [importing, setImporting] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const selected = plans.find((p) => p.id === selectedId) ?? null;
 
   function select(id: string) {
@@ -50,6 +53,13 @@ export function StudiesView({ plans, today, initialPlanId }: { plans: PlanList; 
           <FileUp className="size-4" /> Importar PDF de conteúdo
         </button>
       </div>
+
+      {notice && (
+        <p role="status" className="flex items-start justify-between gap-2 rounded-lg bg-success/10 px-3 py-2 text-sm text-success">
+          {notice}
+          <button type="button" onClick={() => setNotice(null)} className="text-xs underline">ok</button>
+        </p>
+      )}
 
       {active.length === 0 ? (
         <EmptyState icon={GraduationCap} title="Nenhum plano de estudo ainda" description="Importe o PDF com o conteúdo programático: cada parte vira um plano, dividido em temas e conteúdos." />
@@ -98,7 +108,17 @@ export function StudiesView({ plans, today, initialPlanId }: { plans: PlanList; 
         </details>
       )}
 
-      {importing && <ImportDialog onClose={() => setImporting(false)} onImported={(id) => { setImporting(false); select(id); }} />}
+      {importing && (
+        <ImportDialog
+          existingPlans={active.map((p) => ({ id: p.id, name: p.name }))}
+          onClose={() => setImporting(false)}
+          onImported={(id, message) => {
+            setImporting(false);
+            setNotice(message);
+            select(id);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -112,6 +132,15 @@ function PlanView({ plan, today }: { plan: Plan; today: string }) {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [schedule, setSchedule] = useState<Item | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const detail = items.find((i) => i.id === detailId) ?? null;
+  const lt = logTotals(plan.logs);
+  const itemMinutes = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const l of plan.logs) m.set(l.itemId, (m.get(l.itemId) ?? 0) + (l.minutes ?? 0));
+    return m;
+  }, [plan.logs]);
   const [editing, setEditing] = useState(false);
   const [menu, setMenu] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -126,7 +155,7 @@ function PlanView({ plan, today }: { plan: Plan; today: string }) {
     if (filter === "scheduled") return !!n.plannedDate && n.status !== "done";
     return true;
   };
-  const visible = (n: Node): boolean => (n.children.length ? n.children.some(visible) : matches(n));
+  const visible = (n: Node): boolean => (isGroup(n) ? (n.children.length ? n.children.some(visible) : !filtering) : matches(n));
 
   function setStatus(ids: string[], status: StudyStatus) {
     setError(null);
@@ -143,11 +172,11 @@ function PlanView({ plan, today }: { plan: Plan; today: string }) {
     else n.add(id);
     return n;
   });
-  const allGroups = items.filter((i) => items.some((c) => c.parentId === i.id)).map((i) => i.id);
+  const allGroups = items.filter((i) => i.isGroup || items.some((c) => c.parentId === i.id)).map((i) => i.id);
 
   function renderNodes(nodes: Node[], depth: number): React.ReactNode {
     return nodes.filter(visible).map((n) => {
-      if (n.children.length) {
+      if (isGroup(n)) {
         const gs = stats(n.children);
         const expanded = filtering || open.has(n.id);
         const ids = leavesOf(n).map((l) => l.id);
@@ -167,6 +196,9 @@ function PlanView({ plan, today }: { plan: Plan; today: string }) {
                 </span>
               </span>
               <span className="w-12 text-right text-xs tabular-nums text-muted-foreground">{gs.done}/{gs.total}</span>
+              <button type="button" aria-label={`Editar ${n.title}`} onClick={() => setDetailId(n.id)} className="rounded p-1 text-muted-foreground opacity-60 hover:bg-muted group-hover:opacity-100">
+                <Pencil className="size-3" />
+              </button>
               <select
                 aria-label={`Marcar todos de ${n.title}`}
                 className="w-7 cursor-pointer appearance-none rounded bg-transparent text-center text-xs text-muted-foreground opacity-60 hover:bg-muted group-hover:opacity-100"
@@ -179,7 +211,10 @@ function PlanView({ plan, today }: { plan: Plan; today: string }) {
                 <option value="not_started">Marcar tudo como não iniciado</option>
               </select>
             </div>
-            {expanded && <ul>{renderNodes(n.children, depth + 1)}</ul>}
+            {expanded && n.children.length > 0 && <ul>{renderNodes(n.children, depth + 1)}</ul>}
+            {expanded && n.children.length === 0 && (
+              <p className="py-1 text-xs text-muted-foreground" style={{ paddingLeft: (depth + 1) * 16 + 26 }}>Vazio: use “+ Adicionar” para colocar conteúdos aqui.</p>
+            )}
           </li>
         );
       }
@@ -193,11 +228,17 @@ function PlanView({ plan, today }: { plan: Plan; today: string }) {
           >
             {(Object.keys(STATUS_LABEL) as StudyStatus[]).map((st) => <option key={st} value={st}>{STATUS_LABEL[st]}</option>)}
           </select>
-          <span className={`min-w-0 flex-1 text-sm ${n.status === "done" ? "text-muted-foreground line-through decoration-muted-foreground/40" : ""}`} title={n.description ?? undefined}>
+          <button
+            type="button"
+            onClick={() => setDetailId(n.id)}
+            className={`min-w-0 flex-1 text-left text-sm hover:underline ${n.status === "done" ? "text-muted-foreground line-through decoration-muted-foreground/40" : ""}`}
+            title="Abrir: registrar estudo, anotações e edição"
+          >
             {n.code && /^\d/.test(n.code) && <span className="text-muted-foreground">{n.code} </span>}
             {n.title}
             {n.description && <span className="block truncate text-xs text-muted-foreground no-underline">{n.description}</span>}
-          </span>
+          </button>
+          {itemMinutes.get(n.id) ? <span className="text-xs tabular-nums text-primary" title="tempo já estudado">{minutesText(itemMinutes.get(n.id)!)} estudado</span> : null}
           {n.tags.map((t) => <span key={t} className="rounded bg-muted px-1.5 text-[11px] text-muted-foreground">{t}</span>)}
           {n.durationMinutes && <span className="text-xs tabular-nums text-muted-foreground">{hours(n.durationMinutes)}</span>}
           <button
@@ -229,6 +270,13 @@ function PlanView({ plan, today }: { plan: Plan; today: string }) {
             {s.scheduled ? ` · ${s.scheduled} agendado(s)` : ""}
             {s.minutes ? ` · faltam ${hours(s.minutes - s.minutesDone)} de aulas` : ""}
           </p>
+          {(lt.minutes > 0 || lt.questions > 0) && (
+            <p className="text-xs text-muted-foreground">
+              Estudado: {minutesText(lt.minutes)}
+              {lt.questions ? ` · ${lt.questions} questões` : ""}
+              {lt.accuracy !== null ? ` · ${Math.round(lt.accuracy * 100)}% de acerto` : ""}
+            </p>
+          )}
         </div>
         <button type="button" aria-label="Opções do plano" onClick={() => setMenu((m) => !m)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted">
           <MoreHorizontal className="size-4" />
@@ -270,6 +318,9 @@ function PlanView({ plan, today }: { plan: Plan; today: string }) {
             {open.size ? "Recolher tudo" : "Expandir tudo"}
           </button>
         )}
+        <button type="button" onClick={() => setAdding(true)} className="flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-xs hover:bg-muted">
+          <Plus className="size-3" /> Adicionar
+        </button>
       </div>
 
       {error && <p role="alert" className="mb-2 rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
@@ -278,6 +329,17 @@ function PlanView({ plan, today }: { plan: Plan; today: string }) {
       {filtering && !tree.some(visible) && <p className="py-6 text-center text-sm text-muted-foreground">Nada com esse filtro.</p>}
 
       {schedule && <ScheduleDialog item={schedule} today={today} onClose={() => setSchedule(null)} />}
+      {detail && (
+        <ItemDialog
+          key={detail.id}
+          plan={{ ...plan, items }}
+          item={detail}
+          isLeaf={!detail.isGroup && !items.some((i) => i.parentId === detail.id)}
+          today={today}
+          onClose={() => setDetailId(null)}
+        />
+      )}
+      {adding && <AddItemDialog plan={plan} items={items} onClose={() => setAdding(false)} />}
       {editing && <PlanDialog plan={plan} onClose={() => setEditing(false)} />}
     </section>
   );

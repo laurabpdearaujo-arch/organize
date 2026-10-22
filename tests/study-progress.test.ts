@@ -6,6 +6,7 @@ const it_ = (id: string, parentId: string | null, position: number, status: Stud
   parentId,
   position,
   status,
+  isGroup: false,
   durationMinutes: null,
   plannedDate: null,
   ...extra,
@@ -38,6 +39,12 @@ describe("árvore e progresso", () => {
     const micro = tree[0];
     expect(progress(stats(micro.children))).toBeCloseTo(1.5 / 3);
     expect(leavesOf(micro).map((n) => n.id)).toEqual(["1.1", "1.2", "eq"]);
+  });
+
+  it("tema/subtema vazio não conta como conteúdo", () => {
+    const t = buildTree([...items, it_("novo", null, 2, "not_started", { isGroup: true })]);
+    expect(stats(t).total).toBe(4);
+    expect(leavesOf(t[2])).toEqual([]);
   });
 
   it("plano vazio: progresso 0", () => {

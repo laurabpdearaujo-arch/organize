@@ -1,6 +1,6 @@
 /*
  * Árvore e progresso dos planos de estudo (funções puras, testadas em tests/study-progress.test.ts).
- * Conteúdos a estudar = folhas (itens sem filhos). Progresso: concluído = 1, parcialmente = 0,5.
+ * Conteúdos a estudar = folhas que não são grupo (temas/subtemas vazios não contam). Progresso: concluído = 1, parcialmente = 0,5.
  */
 
 export type StudyStatus = "not_started" | "in_progress" | "partial" | "done";
@@ -17,6 +17,7 @@ export type ItemLite = {
   parentId: string | null;
   position: number;
   status: StudyStatus;
+  isGroup: boolean;
   durationMinutes: number | null;
   plannedDate: string | null;
 };
@@ -44,7 +45,7 @@ export function stats<T extends ItemLite>(nodes: TreeNode<T>[]): Stats {
   const s: Stats = { total: 0, done: 0, partial: 0, inProgress: 0, scheduled: 0, minutes: 0, minutesDone: 0 };
   const walk = (list: TreeNode<T>[]) => {
     for (const n of list) {
-      if (n.children.length) {
+      if (isGroup(n)) {
         walk(n.children);
         continue;
       }
@@ -68,7 +69,10 @@ export function progress(s: Stats) {
   return s.total === 0 ? 0 : (s.done + s.partial * 0.5) / s.total;
 }
 
-/** Folhas de um nó (ou ele mesmo, se for folha). */
+/** Tema/subtema: marcado como grupo ou com itens dentro. */
+export const isGroup = (n: { isGroup: boolean; children: unknown[] }) => n.isGroup || n.children.length > 0;
+
+/** Conteúdos de um nó (ou ele mesmo, se for conteúdo). */
 export function leavesOf<T extends ItemLite>(n: TreeNode<T>): TreeNode<T>[] {
-  return n.children.length ? n.children.flatMap(leavesOf) : [n];
+  return isGroup(n) ? n.children.flatMap(leavesOf) : [n];
 }
