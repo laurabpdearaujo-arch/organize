@@ -1,6 +1,6 @@
 import {
   BookOpen,
-  Briefcase,
+  ListTodo,
   CalendarDays,
   GraduationCap,
   LayoutDashboard,
@@ -24,7 +24,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/habitos", label: "Hábitos", icon: Target, mobilePrimary: true },
   { href: "/financas", label: "Finanças", icon: Wallet },
   { href: "/leituras", label: "Leituras e Filmes", icon: BookOpen },
-  { href: "/carreira", label: "Carreira", icon: Briefcase },
+  { href: "/tarefas", label: "Tarefas", icon: ListTodo },
 ];
 
 export function isActive(pathname: string, href: string) {

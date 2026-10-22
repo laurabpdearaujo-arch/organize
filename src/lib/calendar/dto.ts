@@ -28,6 +28,19 @@ export type StudyItemDTO = {
   extendedProps: { kind: "study"; itemId: string; planId: string; done: boolean };
 };
 
+/** Prazo de tarefa (somente leitura no calendário; a tarefa se edita em Tarefas). */
+export type TaskDueDTO = {
+  id: string;
+  title: string;
+  start: string;
+  end: string;
+  allDay: true;
+  backgroundColor: string;
+  borderColor: string;
+  editable: false;
+  extendedProps: { kind: "task"; taskId: string; area: "general" | "career"; done: boolean; hard: boolean };
+};
+
 /** Formato que a API do calendário entrega ao navegador (compatível com o FullCalendar). */
 export type CalendarEventDTO = {
   id: string;

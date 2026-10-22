@@ -570,3 +570,57 @@ export const media = pgTable(
   },
   (t) => [index("media_user_idx").on(t.userId, t.status), check("media_rating_1_5", sql`${t.rating} is null or ${t.rating} between 1 and 5`)],
 ).enableRLS();
+
+// ---------- Tarefas (geral e carreira) ----------
+
+/** Projeto / frente de trabalho (usado na parte de carreira). */
+export const taskProjects = pgTable(
+  "task_projects",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: ownerId(),
+    name: text("name").notNull(),
+    color: text("color").notNull().default("violet"),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [index("task_projects_user_idx").on(t.userId)],
+).enableRLS();
+
+/** Tarefa do quadro. Coluna = status; position = ordem dentro da coluna. */
+export const tasks = pgTable(
+  "tasks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: ownerId(),
+    area: text("area").$type<"general" | "career">().notNull(),
+    projectId: uuid("project_id").references(() => taskProjects.id, { onDelete: "set null" }),
+    title: text("title").notNull(),
+    notes: text("notes"),
+    status: text("status").$type<"todo" | "doing" | "done">().notNull().default("todo"),
+    priority: text("priority").$type<"low" | "medium" | "high">().notNull().default("medium"),
+    dueDate: date("due_date", { mode: "string" }),
+    /** Prazo fatal: não pode passar (destaque máximo). */
+    hardDeadline: boolean("hard_deadline").notNull().default(false),
+    position: smallint("position").notNull().default(0),
+    completedOn: date("completed_on", { mode: "string" }),
+    ...timestamps,
+  },
+  (t) => [index("tasks_user_area_idx").on(t.userId, t.area, t.status), index("tasks_user_due_idx").on(t.userId, t.dueDate)],
+).enableRLS();
+
+/** Feedback recebido (carreira). */
+export const feedbacks = pgTable(
+  "feedbacks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: ownerId(),
+    date: date("date", { mode: "string" }).notNull(),
+    fromWhom: text("from_whom"),
+    topic: text("topic"),
+    content: text("content").notNull(),
+    action: text("action"),
+    ...timestamps,
+  },
+  (t) => [index("feedbacks_user_date_idx").on(t.userId, t.date)],
+).enableRLS();

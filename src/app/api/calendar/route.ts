@@ -3,7 +3,8 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
 import { listOccurrences } from "@/lib/calendar/repository";
 import { colorHex } from "@/lib/calendar/colors";
-import { localDate, type BillReminderDTO, type CalendarEventDTO, type StudyItemDTO } from "@/lib/calendar/dto";
+import { localDate, type BillReminderDTO, type CalendarEventDTO, type StudyItemDTO, type TaskDueDTO } from "@/lib/calendar/dto";
+import { tasksForCalendar } from "@/lib/tasks/repository";
 import { parseLocalDate, zonedInstant } from "@/lib/calendar/recurrence";
 import { plannedItems } from "@/lib/studies/repository";
 import { billsForCalendar } from "@/lib/finance/bills-repository";
@@ -100,5 +101,23 @@ export async function GET(request: NextRequest) {
       return { ...base, start: start.toISOString(), end: new Date(start.getTime() + minutes * 60_000).toISOString(), allDay: false };
     });
 
-  return NextResponse.json([...body, ...reminders, ...study], { headers: { "Cache-Control": "no-store" } });
+  // Tarefas com prazo (prazo fatal em vermelho)
+  const due: TaskDueDTO[] = (await tasksForCalendar(user.id, first, last)).map((t) => {
+    const done = t.status === "done";
+    const color = done ? "#7a7a88" : t.hardDeadline ? "#d33a3a" : "#b5577d";
+    const next = new Date(Date.parse(`${t.dueDate}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+    return {
+      id: `task-${t.id}`,
+      title: `${done ? "✓ " : ""}${t.hardDeadline ? "Prazo fatal" : "Prazo"}: ${t.title}`,
+      start: t.dueDate!,
+      end: next,
+      allDay: true,
+      backgroundColor: color,
+      borderColor: color,
+      editable: false,
+      extendedProps: { kind: "task", taskId: t.id, area: t.area, done, hard: t.hardDeadline },
+    };
+  });
+
+  return NextResponse.json([...body, ...reminders, ...study, ...due], { headers: { "Cache-Control": "no-store" } });
 }

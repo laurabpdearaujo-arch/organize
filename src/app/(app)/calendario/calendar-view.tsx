@@ -12,7 +12,7 @@ import type { DateSelectArg, EventApi, EventClickArg, EventDropArg, EventSourceF
 import type { EventResizeDoneArg } from "@fullcalendar/interaction";
 import { Plus } from "lucide-react";
 import { localDate } from "@/lib/calendar/dto";
-import type { BillReminderDTO, CalendarEventDTO, StudyItemDTO } from "@/lib/calendar/dto";
+import type { BillReminderDTO, CalendarEventDTO, StudyItemDTO, TaskDueDTO } from "@/lib/calendar/dto";
 import { moveEvent } from "./actions";
 import { EventDialog, type DialogState } from "./event-dialog";
 import { newEventValues, valuesFrom } from "./event-form-values";
@@ -38,7 +38,7 @@ export default function CalendarView({ timezone }: { timezone: string }) {
     }
     if (!res.ok) throw new Error("Falha ao carregar eventos");
     setError(null);
-    return (await res.json()) as (CalendarEventDTO | BillReminderDTO | StudyItemDTO)[];
+    return (await res.json()) as (CalendarEventDTO | BillReminderDTO | StudyItemDTO | TaskDueDTO)[];
   }
 
   function openNew() {
@@ -61,6 +61,10 @@ export default function CalendarView({ timezone }: { timezone: string }) {
     }
     if (ev.extendedProps.kind === "study") {
       router.push(`/estudos?plano=${ev.extendedProps.planId}`); // conteúdo de estudo: status e data ficam em Estudos
+      return;
+    }
+    if (ev.extendedProps.kind === "task") {
+      router.push(`/tarefas?aba=${ev.extendedProps.area === "career" ? "carreira" : "geral"}`); // prazo de tarefa: edição em Tarefas
       return;
     }
     const p = ev.extendedProps as Props;
