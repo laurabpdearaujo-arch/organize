@@ -430,3 +430,53 @@ export const investmentValuations = pgTable(
     check("investment_valuations_one_value", sql`(${t.valueCents} is null) <> (${t.priceCents} is null)`),
   ],
 ).enableRLS();
+
+// ---------------- Estudos ----------------
+
+export const studyPlans = pgTable(
+  "study_plans",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: ownerId(),
+    name: text("name").notNull(),
+    objective: text("objective"),
+    color: text("color").notNull().default("violet"),
+    sourceFileName: text("source_file_name"),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [index("study_plans_user_idx").on(t.userId)],
+).enableRLS();
+
+/**
+ * Item da árvore do plano: tema, subtema ou conteúdo a estudar (as folhas).
+ * O progresso de um tema é calculado a partir das folhas dele.
+ */
+export const studyItems = pgTable(
+  "study_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: ownerId(),
+    planId: uuid("plan_id")
+      .notNull()
+      .references(() => studyPlans.id, { onDelete: "cascade" }),
+    parentId: uuid("parent_id").references((): AnyPgColumn => studyItems.id, { onDelete: "cascade" }),
+    position: smallint("position").notNull().default(0),
+    code: text("code"),
+    title: text("title").notNull(),
+    description: text("description"),
+    durationMinutes: smallint("duration_minutes"),
+    tags: text("tags").array().notNull().default(sql`'{}'::text[]`),
+    status: text("status").$type<"not_started" | "in_progress" | "partial" | "done">().notNull().default("not_started"),
+    /** Dia (e, opcionalmente, horário e duração) em que a pessoa planejou estudar. */
+    plannedDate: date("planned_date", { mode: "string" }),
+    plannedTime: text("planned_time"),
+    plannedMinutes: smallint("planned_minutes"),
+    notes: text("notes"),
+    ...timestamps,
+  },
+  (t) => [
+    index("study_items_plan_idx").on(t.planId),
+    index("study_items_user_planned_idx").on(t.userId, t.plannedDate),
+  ],
+).enableRLS();

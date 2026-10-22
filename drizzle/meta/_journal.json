@@ -71,6 +71,13 @@
       "when": 1792677079685,
       "tag": "0009_investments",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792678840041,
+      "tag": "0010_studies",
+      "breakpoints": true
     }
   ]
 }

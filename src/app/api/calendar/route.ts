@@ -3,7 +3,9 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
 import { listOccurrences } from "@/lib/calendar/repository";
 import { colorHex } from "@/lib/calendar/colors";
-import { localDate, type BillReminderDTO, type CalendarEventDTO } from "@/lib/calendar/dto";
+import { localDate, type BillReminderDTO, type CalendarEventDTO, type StudyItemDTO } from "@/lib/calendar/dto";
+import { parseLocalDate, zonedInstant } from "@/lib/calendar/recurrence";
+import { plannedItems } from "@/lib/studies/repository";
 import { billsForCalendar } from "@/lib/finance/bills-repository";
 import { reminderDates } from "@/lib/finance/bills";
 import { formatMoney } from "@/lib/finance/money";
@@ -80,5 +82,23 @@ export async function GET(request: NextRequest) {
     };
   });
 
-  return NextResponse.json([...body, ...reminders], { headers: { "Cache-Control": "no-store" } });
+  // Conteúdos de estudo com data marcada
+  const study: StudyItemDTO[] = (await plannedItems(user.id, first, last))
+    .filter((s) => !s.planArchived)
+    .map((s) => {
+      const done = s.status === "done";
+      const color = done ? "#7a7a88" : colorHex(s.planColor);
+      const title = `${done ? "✓ " : ""}Estudo: ${s.code && /^\d/.test(s.code) ? `${s.code} ` : ""}${s.title} (${s.planName})`;
+      const base = { id: `study-${s.id}`, title, backgroundColor: color, borderColor: color, editable: false as const, extendedProps: { kind: "study" as const, itemId: s.id, planId: s.planId, done } };
+      if (!s.plannedTime) {
+        const next = new Date(Date.parse(`${s.plannedDate}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+        return { ...base, start: s.plannedDate!, end: next, allDay: true };
+      }
+      const [hh, mm] = s.plannedTime.split(":").map(Number);
+      const start = zonedInstant(parseLocalDate(s.plannedDate!), hh, mm, tz);
+      const minutes = s.plannedMinutes ?? s.durationMinutes ?? 60;
+      return { ...base, start: start.toISOString(), end: new Date(start.getTime() + minutes * 60_000).toISOString(), allDay: false };
+    });
+
+  return NextResponse.json([...body, ...reminders, ...study], { headers: { "Cache-Control": "no-store" } });
 }

@@ -15,6 +15,19 @@ export type BillReminderDTO = {
   extendedProps: { kind: "bill"; billId: string; paid: boolean };
 };
 
+/** Conteúdo de estudo agendado (somente leitura no calendário; a data se muda em Estudos). */
+export type StudyItemDTO = {
+  id: string;
+  title: string;
+  start: string;
+  end: string;
+  allDay: boolean;
+  backgroundColor: string;
+  borderColor: string;
+  editable: false;
+  extendedProps: { kind: "study"; itemId: string; planId: string; done: boolean };
+};
+
 /** Formato que a API do calendário entrega ao navegador (compatível com o FullCalendar). */
 export type CalendarEventDTO = {
   id: string;
