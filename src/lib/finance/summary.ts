@@ -86,5 +86,5 @@ export function pctChange(current: number, previous: number) {
 /** Moedas que aparecem nas contas (BRL sempre primeiro). */
 export function currenciesInUse(accounts: AccountLite[]): Currency[] {
   const set = new Set<Currency>(accounts.map((a) => a.currency));
-  return (["BRL", "USD", "EUR"] as Currency[]).filter((c) => set.has(c) || c === "BRL");
+  return (["BRL", "USD", "EUR", "GBP"] as Currency[]).filter((c) => set.has(c) || c === "BRL");
 }

@@ -36,6 +36,41 @@
       "when": 1792386627349,
       "tag": "0004_finance",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792443738737,
+      "tag": "0005_imports",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792446890744,
+      "tag": "0006_finance_setup_once",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792458549102,
+      "tag": "0007_import_batch_link",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792604537736,
+      "tag": "0008_bills",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792677079685,
+      "tag": "0009_investments",
+      "breakpoints": true
     }
   ]
 }

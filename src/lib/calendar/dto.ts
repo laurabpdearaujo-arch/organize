@@ -2,6 +2,19 @@ import { TZDate } from "@date-fns/tz";
 import { format } from "date-fns";
 import type { Recurrence } from "./recurrence";
 
+/** Lembrete de vencimento de conta a pagar (somente leitura no calendário). */
+export type BillReminderDTO = {
+  id: string;
+  title: string;
+  start: string;
+  end: string;
+  allDay: true;
+  backgroundColor: string;
+  borderColor: string;
+  editable: false;
+  extendedProps: { kind: "bill"; billId: string; paid: boolean };
+};
+
 /** Formato que a API do calendário entrega ao navegador (compatível com o FullCalendar). */
 export type CalendarEventDTO = {
   id: string;

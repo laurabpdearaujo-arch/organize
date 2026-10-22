@@ -98,6 +98,24 @@ describe("finanças no banco", () => {
     expect(await repo.createTx(b, tx({ type: catA.kind, accountId: ccB, amount: "1", categoryId: catA.id }))).toBe("category_invalid");
   }, 60_000);
 
+  it("várias aberturas ao mesmo tempo criam UMA carteira e um conjunto de categorias; apagada, não volta", async () => {
+    const c = await createTempUser();
+    try {
+      await Promise.all(Array.from({ length: 10 }, () => repo.loadFinance(c, "2026-10")));
+      let data = await repo.loadFinance(c, "2026-10");
+      expect(data.accounts.filter((x) => x.type === "cash")).toHaveLength(1);
+      const names = data.categories.map((x) => `${x.kind}:${x.name}`);
+      expect(new Set(names).size).toBe(names.length);
+
+      expect(await repo.deleteAccount(c, data.accounts[0].id)).toBe("ok");
+      await repo.loadFinance(c, "2026-10");
+      data = await repo.loadFinance(c, "2026-10");
+      expect(data.accounts).toHaveLength(0);
+    } finally {
+      await deleteTempUser(c);
+    }
+  }, 60_000);
+
   it("dinheiro vivo: carteira única, gasto em espécie e ajuste de saldo sem lançamento falso", async () => {
     await repo.loadFinance(a, "2026-10"); // de novo: não pode criar uma segunda carteira
     let data = await repo.loadFinance(a, "2026-10");

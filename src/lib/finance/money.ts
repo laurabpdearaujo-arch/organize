@@ -1,13 +1,13 @@
-export type Currency = "BRL" | "USD" | "EUR";
-export const CURRENCIES: Currency[] = ["BRL", "USD", "EUR"];
-export const CURRENCY_SYMBOL: Record<Currency, string> = { BRL: "R$", USD: "US$", EUR: "€" };
+export type Currency = "BRL" | "USD" | "EUR" | "GBP";
+export const CURRENCIES: Currency[] = ["BRL", "USD", "EUR", "GBP"];
+export const CURRENCY_SYMBOL: Record<Currency, string> = { BRL: "R$", USD: "US$", EUR: "€", GBP: "£" };
 
 /**
  * Converte o que a pessoa digitou em centavos inteiros. Aceita "1.234,56", "1234,56", "1234.56", "50".
  * Retorna null se não for um valor válido (>= 0).
  */
 export function parseMoney(input: string): number | null {
-  let s = input.trim().replace(/^(R\$|US\$|€)\s*/i, "").replace(/\s/g, "");
+  let s = input.trim().replace(/^(R\$|US\$|€|£)\s*/i, "").replace(/\s/g, "");
   if (!s || !/^[\d.,]+$/.test(s)) return null;
 
   if (s.includes(",")) {

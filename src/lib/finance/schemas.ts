@@ -3,7 +3,7 @@ import { EVENT_COLOR_KEYS } from "@/lib/calendar/colors";
 import { parseMoney } from "./money";
 
 const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida.");
-const currency = z.enum(["BRL", "USD", "EUR"]);
+const currency = z.enum(["BRL", "USD", "EUR", "GBP"]);
 
 /** Valor digitado ("1.234,56") → centavos > 0 */
 const positiveMoney = z.string().transform((s, ctx) => {
@@ -76,6 +76,64 @@ export const goalInputSchema = z.object({
   currency,
   deadline: dateStr.nullable(),
   color: z.enum(EVENT_COLOR_KEYS),
+});
+
+export const billInputSchema = z.object({
+  name: z.string().trim().min(1, "Dê um nome à conta.").max(80),
+  /** Valor de referência, opcional ("" = sem valor fixo). */
+  amount: z.string().transform((s, ctx) => {
+    if (s.trim() === "") return null;
+    const v = parseMoney(s);
+    if (v === null || v <= 0) {
+      ctx.addIssue({ code: "custom", message: "Valor inválido (deixe em branco se varia)." });
+      return z.NEVER;
+    }
+    return v;
+  }),
+  dueDay: z.number().int().min(1, "Dia entre 1 e 31.").max(31, "Dia entre 1 e 31."),
+  autoDebit: z.boolean(),
+  accountId: z.uuid().nullable(),
+  notes: z.string().trim().max(500).default(""),
+});
+
+export const investmentInputSchema = z.object({
+  name: z.string().trim().min(1, "Dê um nome ao investimento.").max(80),
+  kind: z.enum(["fixed_income", "stock", "pension"]),
+  subtype: z.string().trim().max(40).default(""),
+  ticker: z.string().trim().toUpperCase().max(20).default(""),
+  institution: z.string().trim().max(60).default(""),
+  currency,
+  color: z.enum(EVENT_COLOR_KEYS),
+});
+
+/** Quantidade de cotas: aceita "10", "10,5", "0,0001". */
+const quantityStr = z.string().transform((s, ctx) => {
+  // com vírgula: vírgula é decimal e pontos são milhar ("1.000,5"); sem vírgula: ponto é decimal ("10.5")
+  const raw = s.trim();
+  const t = raw.includes(",") ? raw.replace(/\./g, "").replace(",", ".") : raw;
+  if (t === "") return null;
+  const n = Number(t);
+  if (!Number.isFinite(n) || n <= 0 || !/^\d+(\.\d{1,6})?$/.test(t)) {
+    ctx.addIssue({ code: "custom", message: "Quantidade inválida." });
+    return z.NEVER;
+  }
+  return n;
+});
+
+export const movementInputSchema = z.object({
+  investmentId: z.uuid(),
+  type: z.enum(["contribution", "withdrawal", "reinvestment", "income"]),
+  date: dateStr,
+  amount: positiveMoney,
+  quantity: quantityStr,
+  notes: z.string().trim().max(300).default(""),
+});
+
+export const valuationInputSchema = z.object({
+  investmentId: z.uuid(),
+  date: dateStr,
+  /** Valor total (renda fixa/previdência) ou preço da cota (ações). */
+  amount: positiveMoney,
 });
 
 export const contributionInputSchema = z.object({

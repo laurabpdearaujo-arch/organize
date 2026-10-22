@@ -1,14 +1,13 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ArrowDownRight, ArrowUpRight, Scale, Wallet } from "lucide-react";
-import { EmptyState } from "@/components/empty-state";
+import { ArrowDownRight, ArrowUpRight, Scale } from "lucide-react";
 import { colorHex } from "@/lib/calendar/colors";
 import type { FinanceData } from "@/lib/finance/repository";
 import { formatMoney, type Currency } from "@/lib/finance/money";
-import { ACCOUNT_TYPE_LABEL } from "@/lib/finance/constants";
 import { addMonths, monthlySeries, monthTotals, pctChange, totalsByCategory } from "@/lib/finance/summary";
 import type { FinanceTab } from "./finance-view";
+import { AccountTiles } from "./accounts-panel";
 
 // Cores validadas (claro e escuro, inclusive daltonismo): receitas azul, despesas rosa.
 const INCOME = "#3b7de0";
@@ -23,24 +22,11 @@ export function Overview({ data, month, currency, onGoTo }: { data: FinanceData;
   const byCat = totalsByCategory(data.transactions, accMap, month, currency, "expense");
   const series = monthlySeries(data.transactions, accMap, month, 6, currency);
   const catName = new Map(data.categories.map((c) => [c.id, c.name]));
-  const activeAccounts = data.accounts.filter((a) => !a.archivedAt && a.currency === currency);
   const fmt = (c: number) => formatMoney(c, currency);
-
-  if (data.accounts.length === 0) {
-    return (
-      <div className="space-y-3">
-        <EmptyState icon={Wallet} title="Nenhuma conta ainda" description="Comece cadastrando suas contas (corrente, cartão, dinheiro…) para lançar receitas e despesas." />
-        <div className="text-center">
-          <button type="button" onClick={() => onGoTo("contas")} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">
-            Cadastrar conta
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-4">
+      <AccountTiles data={data} currency={currency} />
       <section className="grid gap-3 sm:grid-cols-3">
         <Stat icon={ArrowUpRight} label="Receitas" value={fmt(cur.income)} change={pctChange(cur.income, prev.income)} goodWhenUp />
         <Stat icon={ArrowDownRight} label="Despesas" value={fmt(cur.expense)} change={pctChange(cur.expense, prev.expense)} />
@@ -71,29 +57,7 @@ export function Overview({ data, month, currency, onGoTo }: { data: FinanceData;
         </div>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-border bg-card p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-medium">Saldos das contas</h2>
-            <button type="button" onClick={() => onGoTo("contas")} className="text-xs text-primary hover:underline">Gerenciar</button>
-          </div>
-          <ul className="divide-y divide-border text-sm">
-            {activeAccounts.map((a) => (
-              <li key={a.id} className="flex items-center justify-between gap-2 py-2">
-                <span className="flex items-center gap-2">
-                  <span className="size-2.5 rounded-full" style={{ backgroundColor: colorHex(a.color) }} />
-                  {a.name}
-                  <span className="text-xs text-muted-foreground">{ACCOUNT_TYPE_LABEL[a.type]}</span>
-                </span>
-                <span className={`font-medium tabular-nums ${a.balanceCents < 0 ? "text-danger" : ""}`}>{fmt(a.balanceCents)}</span>
-              </li>
-            ))}
-            <li className="flex justify-between py-2 font-medium">
-              <span>Total (com dívidas de cartão)</span>
-              <span className="tabular-nums">{fmt(activeAccounts.reduce((s, a) => s + a.balanceCents, 0))}</span>
-            </li>
-          </ul>
-        </div>
+      <section>
         <div className="rounded-2xl border border-border bg-card p-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="font-medium">Metas de longo prazo</h2>
@@ -102,7 +66,7 @@ export function Overview({ data, month, currency, onGoTo }: { data: FinanceData;
           {data.goals.filter((g) => !g.archivedAt && g.currency === currency).length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">Nenhuma meta nesta moeda.</p>
           ) : (
-            <ul className="space-y-3">
+            <ul className="grid gap-x-6 gap-y-3 md:grid-cols-2">
               {data.goals
                 .filter((g) => !g.archivedAt && g.currency === currency)
                 .slice(0, 4)

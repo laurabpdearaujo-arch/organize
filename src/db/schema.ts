@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   bigint,
   boolean,
   check,
@@ -39,6 +40,8 @@ export const profiles = pgTable("profiles", {
   displayName: text("display_name"),
   timezone: text("timezone").notNull().default("America/Sao_Paulo"),
   currency: text("currency").notNull().default("BRL"),
+  /** Quando as categorias padrão e a Carteira foram criadas (garante que acontece uma única vez). */
+  financeSetupAt: timestamp("finance_setup_at", { withTimezone: true }),
   ...timestamps,
 }).enableRLS();
 
@@ -183,7 +186,7 @@ export const accounts = pgTable(
     userId: ownerId(),
     name: text("name").notNull(),
     type: text("type").$type<"checking" | "savings" | "cash" | "investment" | "credit_card">().notNull(),
-    currency: text("currency").$type<"BRL" | "USD" | "EUR">().notNull().default("BRL"),
+    currency: text("currency").$type<"BRL" | "USD" | "EUR" | "GBP">().notNull().default("BRL"),
     initialBalanceCents: bigint("initial_balance_cents", { mode: "number" }).notNull().default(0),
     color: text("color").notNull().default("violet"),
     /** Cartão: dia do fechamento e do vencimento da fatura. */
@@ -235,12 +238,15 @@ export const transactions = pgTable(
     notes: text("notes"),
     /** Impressão digital para evitar importar o mesmo lançamento duas vezes (importação de extratos). */
     fingerprint: text("fingerprint"),
+    /** Importação de onde veio. Desfazer a importação (apagar o lote) apaga estes lançamentos. */
+    importBatchId: uuid("import_batch_id").references((): AnyPgColumn => importBatches.id, { onDelete: "cascade" }),
     ...timestamps,
   },
   (t) => [
     index("transactions_user_date_idx").on(t.userId, t.date),
     index("transactions_account_idx").on(t.accountId),
     uniqueIndex("transactions_user_fingerprint_uq").on(t.userId, t.fingerprint),
+    index("transactions_import_batch_idx").on(t.importBatchId),
     check("transactions_amount_positive", sql`${t.amountCents} > 0`),
     check(
       "transactions_transfer_shape",
@@ -257,7 +263,7 @@ export const savingsGoals = pgTable(
     userId: ownerId(),
     name: text("name").notNull(),
     targetCents: bigint("target_cents", { mode: "number" }).notNull(),
-    currency: text("currency").$type<"BRL" | "USD" | "EUR">().notNull().default("BRL"),
+    currency: text("currency").$type<"BRL" | "USD" | "EUR" | "GBP">().notNull().default("BRL"),
     deadline: date("deadline", { mode: "string" }),
     color: text("color").notNull().default("violet"),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
@@ -281,4 +287,146 @@ export const goalContributions = pgTable(
     ...timestamps,
   },
   (t) => [index("goal_contributions_goal_idx").on(t.goalId)],
+).enableRLS();
+
+/** Registro de cada extrato importado (o PDF em si NÃO é guardado; só o hash, para avisar repetição). */
+export const importBatches = pgTable(
+  "import_batches",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: ownerId(),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    fileHash: text("file_hash").notNull(),
+    fileName: text("file_name"),
+    periodStart: date("period_start", { mode: "string" }),
+    periodEnd: date("period_end", { mode: "string" }),
+    rowsImported: smallint("rows_imported").notNull().default(0),
+    rowsSkipped: smallint("rows_skipped").notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [index("import_batches_user_hash_idx").on(t.userId, t.fileHash)],
+).enableRLS();
+
+/** Regras aprendidas na importação: descrição normalizada → tipo/categoria/conta de destino. */
+export const importRules = pgTable(
+  "import_rules",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: ownerId(),
+    pattern: text("pattern").notNull(),
+    type: text("type").$type<"income" | "expense" | "transfer">().notNull(),
+    categoryId: uuid("category_id").references(() => categories.id, { onDelete: "set null" }),
+    toAccountId: uuid("to_account_id").references(() => accounts.id, { onDelete: "set null" }),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("import_rules_user_pattern_uq").on(t.userId, t.pattern)],
+).enableRLS();
+
+// ---------------- Contas a pagar (registro; não gera lançamentos) ----------------
+
+/** Conta recorrente mensal (luz, aluguel, assinatura…). */
+export const bills = pgTable(
+  "bills",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: ownerId(),
+    name: text("name").notNull(),
+    /** Valor de referência (opcional; contas como luz variam). */
+    amountCents: bigint("amount_cents", { mode: "number" }),
+    /** Dia do vencimento (ou do débito automático). Em meses mais curtos, vale o último dia. */
+    dueDay: smallint("due_day").notNull(),
+    autoDebit: boolean("auto_debit").notNull().default(false),
+    accountId: uuid("account_id").references(() => accounts.id, { onDelete: "set null" }),
+    notes: text("notes"),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    index("bills_user_idx").on(t.userId),
+    check("bills_due_day_range", sql`${t.dueDay} between 1 and 31`),
+  ],
+).enableRLS();
+
+/** Marca de "paga" de uma conta num mês ("AAAA-MM"). */
+export const billPayments = pgTable(
+  "bill_payments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: ownerId(),
+    billId: uuid("bill_id")
+      .notNull()
+      .references(() => bills.id, { onDelete: "cascade" }),
+    month: text("month").notNull(),
+    paidOn: date("paid_on", { mode: "string" }).notNull(),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("bill_payments_bill_month_uq").on(t.billId, t.month)],
+).enableRLS();
+
+// ---------------- Investimentos (registro; não gera lançamentos) ----------------
+
+export const investments = pgTable(
+  "investments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: ownerId(),
+    name: text("name").notNull(),
+    /** fixed_income = renda fixa · stock = ações/FIIs/ETFs (por cotas) · pension = previdência */
+    kind: text("kind").$type<"fixed_income" | "stock" | "pension">().notNull(),
+    /** Ex.: CDB, Tesouro, FII, ETF, PGBL… (livre) */
+    subtype: text("subtype"),
+    ticker: text("ticker"),
+    institution: text("institution"),
+    currency: text("currency").$type<"BRL" | "USD" | "EUR" | "GBP">().notNull().default("BRL"),
+    color: text("color").notNull().default("blue"),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [index("investments_user_idx").on(t.userId)],
+).enableRLS();
+
+export const investmentMovements = pgTable(
+  "investment_movements",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: ownerId(),
+    investmentId: uuid("investment_id")
+      .notNull()
+      .references(() => investments.id, { onDelete: "cascade" }),
+    date: date("date", { mode: "string" }).notNull(),
+    /** contribution = aporte · withdrawal = resgate/venda · reinvestment = rendimento reinvestido · income = rendimento recebido */
+    type: text("type").$type<"contribution" | "withdrawal" | "reinvestment" | "income">().notNull(),
+    amountCents: bigint("amount_cents", { mode: "number" }).notNull(),
+    /** Cotas (ações/FIIs/ETFs). */
+    quantity: numeric("quantity", { mode: "number" }),
+    notes: text("notes"),
+    ...timestamps,
+  },
+  (t) => [
+    index("investment_movements_inv_idx").on(t.investmentId),
+    check("investment_movements_amount_positive", sql`${t.amountCents} > 0`),
+    check("investment_movements_quantity_positive", sql`${t.quantity} is null or ${t.quantity} > 0`),
+  ],
+).enableRLS();
+
+/** Atualização de valor feita pela pessoa (valor total, ou preço da cota para ações). Uma por dia. */
+export const investmentValuations = pgTable(
+  "investment_valuations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: ownerId(),
+    investmentId: uuid("investment_id")
+      .notNull()
+      .references(() => investments.id, { onDelete: "cascade" }),
+    date: date("date", { mode: "string" }).notNull(),
+    valueCents: bigint("value_cents", { mode: "number" }),
+    priceCents: bigint("price_cents", { mode: "number" }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("investment_valuations_inv_date_uq").on(t.investmentId, t.date),
+    check("investment_valuations_one_value", sql`(${t.valueCents} is null) <> (${t.priceCents} is null)`),
+  ],
 ).enableRLS();

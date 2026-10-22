@@ -4,22 +4,31 @@ import { useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { FinanceData } from "@/lib/finance/repository";
+import type { listImports } from "@/lib/finance/import/repository";
+import type { BillList } from "@/lib/finance/bills-repository";
+import type { InvestmentList } from "@/lib/finance/investments-repository";
 import { CURRENCY_SYMBOL, type Currency } from "@/lib/finance/money";
 import { addMonths, currenciesInUse } from "@/lib/finance/summary";
 import { Overview } from "./overview";
 import { TransactionsPanel } from "./transactions-panel";
-import { AccountsPanel } from "./accounts-panel";
+import { BillsPanel } from "./bills-panel";
+import { InvestmentsPanel } from "./investments-panel";
 import { CategoriesPanel } from "./categories-panel";
 import { GoalsPanel } from "./goals-panel";
+import { ImportPanel } from "./import-panel";
 
-export type FinanceTab = "visao" | "lancamentos" | "contas" | "categorias" | "metas";
+export type ImportList = Awaited<ReturnType<typeof listImports>>;
+export type FinanceTab = "visao" | "lancamentos" | "pagar" | "importar" | "investimentos" | "categorias" | "metas";
 
+// A ordem aqui é a ordem das abas na tela.
 const TAB_LABEL: Record<FinanceTab, string> = {
   visao: "Visão geral",
+  importar: "Importar extrato",
   lancamentos: "Lançamentos",
-  contas: "Contas e cartões",
-  categorias: "Categorias",
+  pagar: "Contas a pagar",
+  investimentos: "Investimentos",
   metas: "Metas",
+  categorias: "Categorias",
 };
 
 const MONTHS = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
@@ -28,11 +37,27 @@ export function monthLabel(month: string) {
   return `${MONTHS[m - 1]} de ${y}`;
 }
 
-export function FinanceView({ data, month, today, initialTab }: { data: FinanceData; month: string; today: string; initialTab: FinanceTab }) {
+export function FinanceView({
+  data,
+  imports,
+  bills,
+  investments,
+  month,
+  today,
+  initialTab,
+}: {
+  data: FinanceData;
+  imports: ImportList;
+  bills: BillList;
+  investments: InvestmentList;
+  month: string;
+  today: string;
+  initialTab: FinanceTab;
+}) {
   const [tab, setTabState] = useState<FinanceTab>(initialTab);
   const currencies = currenciesInUse(data.accounts.filter((a) => !a.archivedAt));
   const [currency, setCurrency] = useState<Currency>("BRL");
-  const showMonth = tab === "visao" || tab === "lancamentos";
+  const showMonth = tab === "visao" || tab === "lancamentos" || tab === "pagar";
   const currentMonth = today.slice(0, 7);
 
   function setTab(t: FinanceTab) {
@@ -93,7 +118,9 @@ export function FinanceView({ data, month, today, initialTab }: { data: FinanceD
 
       {tab === "visao" && <Overview data={data} month={month} currency={currency} onGoTo={setTab} />}
       {tab === "lancamentos" && <TransactionsPanel data={data} month={month} today={today} />}
-      {tab === "contas" && <AccountsPanel data={data} />}
+      {tab === "importar" && <ImportPanel data={data} imports={imports} onGoTo={setTab} />}
+      {tab === "pagar" && <BillsPanel data={data} bills={bills} month={month} today={today} />}
+      {tab === "investimentos" && <InvestmentsPanel investments={investments} today={today} />}
       {tab === "categorias" && <CategoriesPanel data={data} />}
       {tab === "metas" && <GoalsPanel data={data} today={today} />}
     </>

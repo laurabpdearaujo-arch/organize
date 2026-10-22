@@ -1,7 +1,7 @@
 import "server-only";
-import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { accounts, categories, goalContributions, savingsGoals, transactions } from "@/db/schema";
+import { accounts, categories, goalContributions, profiles, savingsGoals, transactions } from "@/db/schema";
 import { DEFAULT_CATEGORIES } from "./constants";
 import type { Currency } from "./money";
 import { addMonths } from "./summary";
@@ -14,20 +14,27 @@ import type { TxInput } from "./schemas";
 
 export type FinanceData = Awaited<ReturnType<typeof loadFinance>>;
 
-/** Cria as categorias padrão e a "Carteira (dinheiro)" na primeira vez. */
+/**
+ * Cria as categorias padrão e a "Carteira (dinheiro)" UMA única vez por usuária.
+ * A página faz várias leituras ao mesmo tempo; por isso a "reserva" é feita no banco
+ * (UPDATE … WHERE finance_setup_at IS NULL só dá certo para a primeira requisição).
+ * Se a pessoa apagar a carteira depois, ela não é recriada.
+ */
 export async function ensureDefaults(userId: string) {
-  const [[{ n }], [{ cash }]] = await Promise.all([
-    db.select({ n: sql<number>`count(*)::int` }).from(categories).where(eq(categories.userId, userId)),
-    db.select({ cash: sql<number>`count(*)::int` }).from(accounts).where(and(eq(accounts.userId, userId), eq(accounts.type, "cash"))),
-  ]);
-  if (n === 0) {
-    await db
-      .insert(categories)
-      .values(DEFAULT_CATEGORIES.map((c) => ({ ...c, userId })))
-      .onConflictDoNothing();
-  }
+  await db.insert(profiles).values({ userId }).onConflictDoNothing();
+  const claimed = await db
+    .update(profiles)
+    .set({ financeSetupAt: new Date() })
+    .where(and(eq(profiles.userId, userId), isNull(profiles.financeSetupAt)))
+    .returning({ userId: profiles.userId });
+  if (claimed.length === 0) return;
+
+  await db
+    .insert(categories)
+    .values(DEFAULT_CATEGORIES.map((c) => ({ ...c, userId })))
+    .onConflictDoNothing();
   // Dinheiro vivo é uma "conta" própria: gasto em espécie não sai do banco.
-  if (cash === 0) await db.insert(accounts).values({ userId, name: "Carteira (dinheiro)", type: "cash", color: "green" });
+  await db.insert(accounts).values({ userId, name: "Carteira (dinheiro)", type: "cash", color: "green" });
 }
 
 /**

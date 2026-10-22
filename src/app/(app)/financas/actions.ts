@@ -6,12 +6,19 @@ import { getCurrentUser } from "@/lib/auth";
 import { runAction, type ActionResult } from "@/lib/action";
 import * as repo from "@/lib/finance/repository";
 import { parseMoney } from "@/lib/finance/money";
+import * as importRepo from "@/lib/finance/import/repository";
+import * as billsRepo from "@/lib/finance/bills-repository";
+import * as invRepo from "@/lib/finance/investments-repository";
 import {
   accountInputSchema,
+  billInputSchema,
   categoryInputSchema,
   contributionInputSchema,
   goalInputSchema,
+  investmentInputSchema,
+  movementInputSchema,
   txInputSchema,
+  valuationInputSchema,
 } from "@/lib/finance/schemas";
 
 const id = z.uuid();
@@ -136,6 +143,197 @@ export async function deleteTransaction(payload: unknown) {
     const req = z.object({ id }).safeParse(payload);
     if (!req.success) return BAD;
     return (await repo.deleteTx(user.id, req.data.id)) ? ok() : NOT_FOUND;
+  });
+}
+
+// ---------- importação de extratos ----------
+
+const commitSchema = z.object({
+  accountId: id,
+  fileName: z.string().max(300),
+  fileHash: z.string().regex(/^[0-9a-f]{64}$/),
+  period: z.object({ start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).nullable(),
+  rows: z
+    .array(
+      z.object({
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        originalDescription: z.string().min(1).max(500),
+        description: z.string().trim().max(200),
+        amountCents: z.number().int().refine((n) => n !== 0),
+        occurrence: z.number().int().min(0).max(1000),
+        type: z.enum(["income", "expense", "transfer"]),
+        categoryId: id.nullable(),
+        toAccountId: id.nullable(),
+        remember: z.boolean(),
+      }),
+    )
+    .min(1, "Selecione pelo menos um lançamento.")
+    .max(1000),
+});
+
+const COMMIT_ERRORS: Record<string, string> = {
+  account_not_found: "Conta não encontrada.",
+  category_invalid: "Alguma categoria não combina com o tipo do lançamento.",
+  transfer_invalid: "Toda transferência precisa de uma conta de destino diferente, na mesma moeda.",
+  sign_mismatch: "Entradas só podem ser receitas e saídas só podem ser despesas (ou transferências).",
+};
+
+export async function commitImport(payload: unknown): Promise<ActionResult & { imported?: number; skipped?: number }> {
+  const out: { imported?: number; skipped?: number } = {};
+  const r = await run(async () => {
+    const user = await getCurrentUser();
+    const v = commitSchema.safeParse(payload);
+    if (!v.success) return firstIssue(v.error);
+    const res = await importRepo.commitImport(user.id, v.data);
+    if ("error" in res) return { ok: false, error: COMMIT_ERRORS[res.error] ?? "Erro." };
+    Object.assign(out, res);
+    return ok();
+  });
+  return { ...r, ...out };
+}
+
+export async function undoImport(payload: unknown) {
+  return run(async () => {
+    const user = await getCurrentUser();
+    const req = z.object({ id }).safeParse(payload);
+    if (!req.success) return BAD;
+    return (await importRepo.undoImport(user.id, req.data.id)) ? ok() : NOT_FOUND;
+  });
+}
+
+// ---------- contas a pagar ----------
+
+export async function saveBill(payload: unknown) {
+  return run(async () => {
+    const user = await getCurrentUser();
+    const req = z.object({ id: id.nullable(), input: z.unknown() }).safeParse(payload);
+    if (!req.success) return BAD;
+    const v = billInputSchema.safeParse(req.data.input);
+    if (!v.success) return firstIssue(v.error);
+    const values = { name: v.data.name, amountCents: v.data.amount, dueDay: v.data.dueDay, autoDebit: v.data.autoDebit, accountId: v.data.accountId, notes: v.data.notes || null };
+    const done = req.data.id ? await billsRepo.updateBill(user.id, req.data.id, values) : await billsRepo.createBill(user.id, values);
+    return done ? ok() : NOT_FOUND;
+  });
+}
+
+export async function archiveBill(payload: unknown) {
+  return run(async () => {
+    const user = await getCurrentUser();
+    const req = z.object({ id, archived: z.boolean() }).safeParse(payload);
+    if (!req.success) return BAD;
+    return (await billsRepo.setBillArchived(user.id, req.data.id, req.data.archived)) ? ok() : NOT_FOUND;
+  });
+}
+
+export async function deleteBill(payload: unknown) {
+  return run(async () => {
+    const user = await getCurrentUser();
+    const req = z.object({ id }).safeParse(payload);
+    if (!req.success) return BAD;
+    return (await billsRepo.deleteBill(user.id, req.data.id)) ? ok() : NOT_FOUND;
+  });
+}
+
+export async function setBillPaid(payload: unknown) {
+  return run(async () => {
+    const user = await getCurrentUser();
+    const req = z
+      .object({ id, month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/), paidOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable() })
+      .safeParse(payload);
+    if (!req.success) return BAD;
+    return (await billsRepo.setBillPaid(user.id, req.data.id, req.data.month, req.data.paidOn)) ? ok() : NOT_FOUND;
+  });
+}
+
+// ---------- investimentos ----------
+
+export async function saveInvestment(payload: unknown) {
+  return run(async () => {
+    const user = await getCurrentUser();
+    const req = z.object({ id: id.nullable(), input: z.unknown() }).safeParse(payload);
+    if (!req.success) return BAD;
+    const v = investmentInputSchema.safeParse(req.data.input);
+    if (!v.success) return firstIssue(v.error);
+    const values = {
+      ...v.data,
+      subtype: v.data.subtype || null,
+      ticker: v.data.kind === "stock" ? v.data.ticker || null : null,
+      institution: v.data.institution || null,
+    };
+    if (!req.data.id) {
+      await invRepo.createInvestment(user.id, values);
+      return ok();
+    }
+    const r = await invRepo.updateInvestment(user.id, req.data.id, values);
+    if (r === "kind_locked") return { ok: false, error: "Não dá para trocar entre “por cotas” e “por valor” depois de haver movimentações." };
+    return r === "ok" ? ok() : NOT_FOUND;
+  });
+}
+
+export async function archiveInvestment(payload: unknown) {
+  return run(async () => {
+    const user = await getCurrentUser();
+    const req = z.object({ id, archived: z.boolean() }).safeParse(payload);
+    if (!req.success) return BAD;
+    return (await invRepo.setInvestmentArchived(user.id, req.data.id, req.data.archived)) ? ok() : NOT_FOUND;
+  });
+}
+
+export async function deleteInvestment(payload: unknown) {
+  return run(async () => {
+    const user = await getCurrentUser();
+    const req = z.object({ id }).safeParse(payload);
+    if (!req.success) return BAD;
+    return (await invRepo.deleteInvestment(user.id, req.data.id)) ? ok() : NOT_FOUND;
+  });
+}
+
+const MOVEMENT_ERRORS: Record<string, string> = {
+  not_found: "Investimento não encontrado. Recarregue a página.",
+  quantity_required: "Informe a quantidade de cotas.",
+  quantity_exceeds: "Você está vendendo mais cotas do que tem.",
+};
+
+export async function addInvestmentMovement(payload: unknown) {
+  return run(async () => {
+    const user = await getCurrentUser();
+    const v = movementInputSchema.safeParse(payload);
+    if (!v.success) return firstIssue(v.error);
+    const r = await invRepo.addMovement(user.id, v.data.investmentId, {
+      date: v.data.date,
+      type: v.data.type,
+      amountCents: v.data.amount,
+      quantity: v.data.quantity,
+      notes: v.data.notes || null,
+    });
+    return r === "ok" ? ok() : { ok: false, error: MOVEMENT_ERRORS[r] ?? "Erro." };
+  });
+}
+
+export async function deleteInvestmentMovement(payload: unknown) {
+  return run(async () => {
+    const user = await getCurrentUser();
+    const req = z.object({ id }).safeParse(payload);
+    if (!req.success) return BAD;
+    return (await invRepo.deleteMovement(user.id, req.data.id)) ? ok() : NOT_FOUND;
+  });
+}
+
+export async function setInvestmentValue(payload: unknown) {
+  return run(async () => {
+    const user = await getCurrentUser();
+    const v = valuationInputSchema.safeParse(payload);
+    if (!v.success) return firstIssue(v.error);
+    return (await invRepo.setValuation(user.id, v.data.investmentId, v.data.date, v.data.amount)) ? ok() : NOT_FOUND;
+  });
+}
+
+export async function deleteInvestmentValue(payload: unknown) {
+  return run(async () => {
+    const user = await getCurrentUser();
+    const req = z.object({ id }).safeParse(payload);
+    if (!req.success) return BAD;
+    return (await invRepo.deleteValuation(user.id, req.data.id)) ? ok() : NOT_FOUND;
   });
 }
 

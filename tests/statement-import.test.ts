@@ -148,6 +148,53 @@ describe("Sicoob: dd/mm sem ano, valor com C/D, descrição embaixo, RESUMO no f
   });
 });
 
+describe("Fatura de cartão (estrutura da fatura Bradesco): modo cartão", () => {
+  // Página 1: resumo. Página 2: lançamentos com painel lateral, seções por portador, cidade, US$ e créditos com "-".
+  const pages: PdfLine[] = [
+    L(1, 749, [421, "Total da fatura"], [497, "Vencimento"]),
+    L(1, 733, [430, "R$ 1.290,00"], [497, "10/01/2027"]),
+    L(1, 712, [417, "Data de fechamento da próxima fatura: 25/01/2027"]),
+    L(1, 422, [40, "Saldo anterior......................... R$"], [143, "500,00"]),
+    L(1, 414, [40, "(-) Créditos/Pagamentos..... R$"], [143, "530,00"]),
+    L(1, 405, [40, "(+)Compras/Débitos............"], [133, "R$"], [143, "1.320,00"]),
+    L(1, 397, [40, "(=)Total.................................... R$"], [143, "1.290,00"]),
+    L(2, 727, [45, "Data"], [67, "Histórico de Lançamentos"], [204, "Cidade"], [253, "US$"], [332, "R$"]),
+    L(2, 713, [45, "11/12"], [74, "PAGTO. POR DEB EM C/C"], R(355, "500,00 -")),
+    L(2, 705, [45, "26/12"], [74, "IOF S/ COMPRA INTER"], R(355, "10,00")),
+    L(2, 695, [45, "FULANA DE TAL"], [210, "Cartão"], [232, "1234 XXXX XXXX 5678"]),
+    L(2, 692, [364, "Compras"], [401, "R$ 9.999,99"], [453, "R$ 9.999,99"]), // painel lateral: ignorar
+    L(2, 686, [45, "28/12"], [67, "PADARIA BOA"], [205, "RIO DE JANEIRO"], R(355, "300,00"), [364, "Saque"], [401, "R$ 999,99"]),
+    L(2, 678, [45, "02/01"], [67, "LOJA ONLINE"], [185, "100,00 SEATTLE"], R(355, "510,00")), // compra internacional
+    L(2, 575, [45, "Total para FULANA DE TAL"]),
+    L(2, 567, [45, "TAL"], R(345, "810,00")),
+    L(2, 559, [45, "CICLANO DA SILVA"], [210, "Cartão"], [232, "1234 XXXX XXXX 9999"]),
+    L(2, 548, [45, "03/01"], [67, "FARMACIA"], [205, "SAO PAULO"], R(355, "500,00")),
+    L(2, 376, [45, "04/01"], [67, "ESTORNO LOJA"], [205, "SAO PAULO"], R(355, "20,00"), [347, "-"]),
+    L(2, 319, [45, "05/01"], [67, "LOJA X"], [205, "SAO PAULO"], R(355, "10,00")),
+    L(2, 316, [347, "-"]), // "-" desalinhado 3pt abaixo
+    L(3, 721, [45, "Total da fatura em REAIS"], R(350, "1.290,00")),
+    L(3, 699, [44, "Nome: FULANA DE TAL"], [228, "Cartão: 1234 XXXX XXXX 5678"]),
+  ];
+  const r = parseStatement(pages, { fallbackYear: 2000, mode: "card" });
+
+  it("compras viram saída, créditos viram entrada; ano deduzido pelo vencimento (virada de ano)", () => {
+    expect(r.rows).toEqual([
+      { date: "2026-12-11", description: "PAGTO. POR DEB EM C/C", amountCents: 50_000 },
+      { date: "2026-12-26", description: "IOF S/ COMPRA INTER", amountCents: -1_000 },
+      { date: "2026-12-28", description: "PADARIA BOA", amountCents: -30_000 },
+      { date: "2027-01-02", description: "LOJA ONLINE 100,00 SEATTLE", amountCents: -51_000 }, // valor em US$ junto da cidade fica no texto
+      { date: "2027-01-03", description: "FARMACIA", amountCents: -50_000 },
+      { date: "2027-01-04", description: "ESTORNO LOJA", amountCents: 2_000 },
+      { date: "2027-01-05", description: "LOJA X", amountCents: 1_000 },
+    ]);
+  });
+
+  it("confere com o Resumo da fatura e ignora painel lateral, portadores e totais", () => {
+    expect(r.reconciliation).toMatchObject({ status: "ok", totals: "ok" });
+    expect(r.warnings).toEqual([]);
+  });
+});
+
 describe("PDF que não é extrato", () => {
   it("avisa em vez de inventar lançamentos", () => {
     const r = parseStatement([L(1, 700, [50, "Relatório qualquer"]), L(1, 680, [50, "Valor: 10,00"])], { fallbackYear: 2026 });

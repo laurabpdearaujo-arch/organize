@@ -29,6 +29,8 @@ describe("valores digitados", () => {
     expect(formatMoney(123456).replace(/\s/g, " ")).toBe("R$ 1.234,56");
     expect(formatMoney(5000, "USD")).toContain("50,00");
     expect(formatMoney(5000, "EUR")).toContain("€");
+    expect(formatMoney(5000, "GBP")).toContain("£");
+    expect(parseMoney("£ 12,50")).toBe(1250);
   });
 });
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { CreditCard, Landmark, MoreHorizontal, Plus } from "lucide-react";
+import { CreditCard, Landmark, MoreHorizontal, Plus, Wallet } from "lucide-react";
 import { Modal, inputCls, labelCls, primaryBtn, secondaryBtn } from "@/components/modal";
 import { EVENT_COLORS, colorHex, type EventColor } from "@/lib/calendar/colors";
 import { ACCOUNT_TYPE_LABEL, type AccountType } from "@/lib/finance/constants";
@@ -11,14 +11,17 @@ import { adjustAccountBalance, archiveAccount, deleteAccount, saveAccount } from
 
 type Account = FinanceData["accounts"][number];
 
-export function AccountsPanel({ data }: { data: FinanceData }) {
+/** Caixas compactas com o saldo de cada conta (fica na Visão geral). Menu ⋯ para editar/ajustar/arquivar. */
+export function AccountTiles({ data, currency }: { data: FinanceData; currency: Currency }) {
   const [dialog, setDialog] = useState<{ account: Account | null } | null>(null);
   const [menu, setMenu] = useState<string | null>(null);
   const [adjust, setAdjust] = useState<Account | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
-  const active = data.accounts.filter((a) => !a.archivedAt);
+  const active = data.accounts.filter((a) => !a.archivedAt && a.currency === currency);
   const archived = data.accounts.filter((a) => a.archivedAt);
+  const total = active.reduce((s, a) => s + a.balanceCents, 0);
 
   function act(fn: () => Promise<{ ok: boolean; error?: string }>) {
     setError(null);
@@ -28,32 +31,26 @@ export function AccountsPanel({ data }: { data: FinanceData }) {
     });
   }
 
-  const card = (a: Account) => (
-    <div key={a.id} className="relative rounded-2xl border border-border bg-card p-4">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span className="flex size-8 items-center justify-center rounded-full" style={{ backgroundColor: `color-mix(in srgb, ${colorHex(a.color)} 18%, var(--card))`, color: colorHex(a.color) }}>
-            {a.type === "credit_card" ? <CreditCard className="size-4" /> : <Landmark className="size-4" />}
+  const tile = (a: Account) => (
+    <div key={a.id} className={`relative rounded-xl border border-border bg-card px-3 py-2.5 ${a.archivedAt ? "opacity-60" : ""}`}>
+      <div className="flex items-center justify-between gap-1">
+        <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+          <span style={{ color: colorHex(a.color) }}>
+            {a.type === "credit_card" ? <CreditCard className="size-3.5" /> : a.type === "cash" ? <Wallet className="size-3.5" /> : <Landmark className="size-3.5" />}
           </span>
-          <div>
-            <p className="text-sm font-medium">{a.name}</p>
-            <p className="text-xs text-muted-foreground">
-              {ACCOUNT_TYPE_LABEL[a.type]} · {CURRENCY_SYMBOL[a.currency]}
-              {a.type === "credit_card" && a.closingDay && ` · fecha dia ${a.closingDay}, vence dia ${a.dueDay}`}
-            </p>
-          </div>
-        </div>
-        <button type="button" aria-label={`Opções de ${a.name}`} onClick={() => setMenu(menu === a.id ? null : a.id)} className="rounded-lg p-1 text-muted-foreground hover:bg-muted">
-          <MoreHorizontal className="size-4" />
+          <span className="truncate" title={`${a.name} · ${ACCOUNT_TYPE_LABEL[a.type]}`}>{a.name}</span>
+        </span>
+        <button type="button" aria-label={`Opções de ${a.name}`} onClick={() => setMenu(menu === a.id ? null : a.id)} className="rounded p-0.5 text-muted-foreground hover:bg-muted">
+          <MoreHorizontal className="size-3.5" />
         </button>
       </div>
-      <p className={`mt-3 text-xl font-semibold tabular-nums ${a.balanceCents < 0 ? "text-danger" : ""}`}>{formatMoney(a.balanceCents, a.currency)}</p>
-      <p className="text-xs text-muted-foreground">{a.type === "credit_card" ? (a.balanceCents < 0 ? "Valor em aberto no cartão" : "Sem dívida") : "Saldo atual"}</p>
+      <p className={`mt-1 text-base font-semibold tabular-nums ${a.balanceCents < 0 ? "text-danger" : ""}`}>{formatMoney(a.balanceCents, a.currency)}</p>
+      {a.type === "credit_card" && <p className="text-[11px] text-muted-foreground">{a.balanceCents < 0 ? "em aberto" : "sem dívida"}{a.dueDay ? ` · vence dia ${a.dueDay}` : ""}</p>}
 
       {menu === a.id && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setMenu(null)} />
-          <ul className="absolute right-3 top-11 z-20 w-40 rounded-xl border border-border bg-card p-1 text-sm shadow-lg">
+          <ul className="absolute right-2 top-8 z-20 w-40 rounded-xl border border-border bg-card p-1 text-sm shadow-lg">
             <li><button type="button" className="w-full rounded-lg px-3 py-1.5 text-left hover:bg-muted" onClick={() => { setMenu(null); setDialog({ account: a }); }}>Editar</button></li>
             <li><button type="button" className="w-full rounded-lg px-3 py-1.5 text-left hover:bg-muted" onClick={() => { setMenu(null); setAdjust(a); }}>Ajustar saldo</button></li>
             <li><button type="button" className="w-full rounded-lg px-3 py-1.5 text-left hover:bg-muted" onClick={() => { setMenu(null); act(() => archiveAccount({ id: a.id, archived: !a.archivedAt })); }}>{a.archivedAt ? "Restaurar" : "Arquivar"}</button></li>
@@ -65,28 +62,28 @@ export function AccountsPanel({ data }: { data: FinanceData }) {
   );
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground">Cartão de crédito é uma conta: as compras são despesas dele, e pagar a fatura é uma transferência da conta corrente para o cartão.</p>
-        <button type="button" onClick={() => setDialog({ account: null })} className={`flex shrink-0 items-center gap-1.5 ${primaryBtn}`}>
+    <section className="space-y-2">
+      <div className="flex items-baseline justify-between gap-2">
+        <h2 className="text-sm font-medium">
+          Contas <span className="font-normal text-muted-foreground">· total {formatMoney(total, currency)} (com dívidas de cartão)</span>
+        </h2>
+        {archived.length > 0 && (
+          <button type="button" onClick={() => setShowArchived((v) => !v)} className="text-xs text-muted-foreground hover:text-foreground">
+            {showArchived ? "Esconder arquivadas" : `Arquivadas (${archived.length})`}
+          </button>
+        )}
+      </div>
+      {error && <p role="alert" className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+        {active.map(tile)}
+        {showArchived && archived.map(tile)}
+        <button type="button" onClick={() => setDialog({ account: null })} className="flex min-h-16 items-center justify-center gap-1.5 rounded-xl border border-dashed border-border text-sm text-muted-foreground hover:bg-muted hover:text-foreground">
           <Plus className="size-4" /> Nova conta
         </button>
       </div>
-      {error && <p role="alert" className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
-      {active.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-border bg-card py-10 text-center text-sm text-muted-foreground">Nenhuma conta cadastrada.</p>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{active.map(card)}</div>
-      )}
-      {archived.length > 0 && (
-        <details className="rounded-2xl border border-border bg-card p-4">
-          <summary className="cursor-pointer text-sm font-medium">Arquivadas ({archived.length})</summary>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{archived.map(card)}</div>
-        </details>
-      )}
       {dialog && <AccountDialog key={dialog.account?.id ?? "new"} account={dialog.account} onClose={() => setDialog(null)} />}
       {adjust && <AdjustDialog account={adjust} onClose={() => setAdjust(null)} />}
-    </div>
+    </section>
   );
 }
 

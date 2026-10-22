@@ -12,7 +12,7 @@ import type { DateSelectArg, EventApi, EventClickArg, EventDropArg, EventSourceF
 import type { EventResizeDoneArg } from "@fullcalendar/interaction";
 import { Plus } from "lucide-react";
 import { localDate } from "@/lib/calendar/dto";
-import type { CalendarEventDTO } from "@/lib/calendar/dto";
+import type { BillReminderDTO, CalendarEventDTO } from "@/lib/calendar/dto";
 import { moveEvent } from "./actions";
 import { EventDialog, type DialogState } from "./event-dialog";
 import { newEventValues, valuesFrom } from "./event-form-values";
@@ -38,7 +38,7 @@ export default function CalendarView({ timezone }: { timezone: string }) {
     }
     if (!res.ok) throw new Error("Falha ao carregar eventos");
     setError(null);
-    return (await res.json()) as CalendarEventDTO[];
+    return (await res.json()) as (CalendarEventDTO | BillReminderDTO)[];
   }
 
   function openNew() {
@@ -55,6 +55,10 @@ export default function CalendarView({ timezone }: { timezone: string }) {
 
   function onEventClick(info: EventClickArg) {
     const ev = info.event;
+    if (ev.extendedProps.kind === "bill") {
+      router.push("/financas?aba=pagar"); // lembrete de conta a pagar: a gestão fica em Finanças
+      return;
+    }
     const p = ev.extendedProps as Props;
     const occurrence = valuesFrom(
       {

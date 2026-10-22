@@ -1,13 +1,14 @@
 // Testa o leitor genérico em extratos REAIS, mostrando só um resumo (sem valores nem descrições).
-// Uso (dentro de organize/): npx tsx scripts/test-import.mts "..\extrato.pdf" ["..\outro.pdf" ...]
+// Uso (dentro de organize/): npx tsx scripts/test-import.mts "..\extrato.pdf" ["..\outro.pdf" ...] [--cartao]
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { pdfToLines } from "../src/lib/finance/import/pdf-lines";
 import { parseStatement } from "../src/lib/finance/import/statement";
 
-for (const file of process.argv.slice(2)) {
+const mode = process.argv.includes("--cartao") ? "card" : "bank";
+for (const file of process.argv.slice(2).filter((a) => !a.startsWith("--"))) {
   const { lines, pageCount } = await pdfToLines(new Uint8Array(readFileSync(file)));
-  const r = parseStatement(lines, { fallbackYear: new Date().getFullYear() });
+  const r = parseStatement(lines, { fallbackYear: new Date().getFullYear(), mode });
   const rec = r.reconciliation;
   const entradas = r.rows.filter((x) => x.amountCents > 0).length;
   const saidas = r.rows.filter((x) => x.amountCents < 0).length;

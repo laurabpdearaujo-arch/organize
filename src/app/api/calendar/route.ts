@@ -3,7 +3,10 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
 import { listOccurrences } from "@/lib/calendar/repository";
 import { colorHex } from "@/lib/calendar/colors";
-import { localDate, type CalendarEventDTO } from "@/lib/calendar/dto";
+import { localDate, type BillReminderDTO, type CalendarEventDTO } from "@/lib/calendar/dto";
+import { billsForCalendar } from "@/lib/finance/bills-repository";
+import { reminderDates } from "@/lib/finance/bills";
+import { formatMoney } from "@/lib/finance/money";
 
 const querySchema = z
   .object({ start: z.coerce.date(), end: z.coerce.date() })
@@ -53,5 +56,29 @@ export async function GET(request: NextRequest) {
     };
   });
 
-  return NextResponse.json(body, { headers: { "Cache-Control": "no-store" } });
+  // Contas a pagar sem débito automático: lembrete no dia do vencimento
+  const first = localDate(parsed.data.start, tz);
+  const last = localDate(new Date(parsed.data.end.getTime() - 1), tz);
+  const billRows = await billsForCalendar(user.id);
+  const byId = new Map(billRows.map((b) => [b.id, b]));
+  const reminders: BillReminderDTO[] = reminderDates(billRows, first, last).map((r) => {
+    const b = byId.get(r.billId)!;
+    const paid = b.paidMonths.has(r.month);
+    const amount = b.amountCents ? ` · ${formatMoney(b.amountCents)}` : "";
+    const next = new Date(Date.parse(`${r.date}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+    const color = paid ? "#7a7a88" : "#d68512";
+    return {
+      id: `bill-${b.id}-${r.date}`,
+      title: `${paid ? "✓ " : ""}Vence: ${b.name}${amount}`,
+      start: r.date,
+      end: next,
+      allDay: true,
+      backgroundColor: color,
+      borderColor: color,
+      editable: false,
+      extendedProps: { kind: "bill", billId: b.id, paid },
+    };
+  });
+
+  return NextResponse.json([...body, ...reminders], { headers: { "Cache-Control": "no-store" } });
 }
