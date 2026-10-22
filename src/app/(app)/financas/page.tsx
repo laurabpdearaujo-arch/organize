@@ -33,5 +33,5 @@ async function FinanceSection({ searchParams }: { searchParams: PageProps<"/fina
     listBills(user.id),
     listInvestments(user.id),
   ]);
-  return <FinanceView data={data} imports={imports} bills={bills} investments={investments} month={mes} today={today} initialTab={aba} />;
+  return <FinanceView data={data} imports={imports} bills={bills} investments={investments} month={mes} today={today} initialTab={aba} openNewTx={sp.novo === "1"} />;
 }

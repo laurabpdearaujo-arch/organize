@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeftRight, Minus, Plus, Receipt } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { inputCls, primaryBtn } from "@/components/modal";
 import { colorHex } from "@/lib/calendar/colors";
+import { dropParam } from "@/lib/drop-param";
 import { PAYMENT_METHOD_LABEL } from "@/lib/finance/constants";
 import type { FinanceData } from "@/lib/finance/repository";
 import { formatMoney } from "@/lib/finance/money";
@@ -20,8 +21,9 @@ function dayLabel(d: string) {
   return `${String(day).padStart(2, "0")}/${String(m).padStart(2, "0")} · ${WEEKDAYS[wd]}`;
 }
 
-export function TransactionsPanel({ data, month, today }: { data: FinanceData; month: string; today: string }) {
-  const [dialog, setDialog] = useState<{ tx: Tx | null } | null>(null);
+export function TransactionsPanel({ data, month, today, openNew = false }: { data: FinanceData; month: string; today: string; openNew?: boolean }) {
+  const [dialog, setDialog] = useState<{ tx: Tx | null } | null>(openNew ? { tx: null } : null);
+  useEffect(() => dropParam("novo"), []);
   const [accountFilter, setAccountFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");

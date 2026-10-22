@@ -22,5 +22,5 @@ async function TasksSection({ searchParams }: { searchParams: PageProps<"/tarefa
   const data = await listTasks(user.id);
   const today = localDate(new Date(), user.timezone);
   const tab: TasksTab = sp.aba === "carreira" ? "carreira" : "geral";
-  return <TasksView data={data} today={today} initialTab={tab} />;
+  return <TasksView data={data} today={today} initialTab={tab} openNew={sp.nova === "1"} />;
 }

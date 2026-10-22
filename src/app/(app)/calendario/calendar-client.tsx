@@ -8,6 +8,6 @@ const CalendarView = dynamic(() => import("./calendar-view"), {
   loading: () => <div className="h-[720px] animate-pulse rounded-2xl border border-border bg-card" />,
 });
 
-export function CalendarClient({ timezone }: { timezone: string }) {
-  return <CalendarView timezone={timezone} />;
+export function CalendarClient({ timezone, openNew }: { timezone: string; openNew?: boolean }) {
+  return <CalendarView timezone={timezone} openNew={openNew} />;
 }

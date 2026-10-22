@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
@@ -12,6 +12,7 @@ import type { DateSelectArg, EventApi, EventClickArg, EventDropArg, EventSourceF
 import type { EventResizeDoneArg } from "@fullcalendar/interaction";
 import { Plus } from "lucide-react";
 import { localDate } from "@/lib/calendar/dto";
+import { dropParam } from "@/lib/drop-param";
 import type { BillReminderDTO, CalendarEventDTO, StudyItemDTO, TaskDueDTO } from "@/lib/calendar/dto";
 import { moveEvent } from "./actions";
 import { EventDialog, type DialogState } from "./event-dialog";
@@ -19,10 +20,20 @@ import { newEventValues, valuesFrom } from "./event-form-values";
 
 type Props = CalendarEventDTO["extendedProps"];
 
-export default function CalendarView({ timezone }: { timezone: string }) {
+/** Evento novo começando na próxima hora cheia, com 1h de duração. */
+function newEventState(timezone: string): DialogState {
+  const start = new Date();
+  start.setMinutes(0, 0, 0);
+  start.setHours(start.getHours() + 1);
+  return { kind: "create", values: newEventValues(start, new Date(start.getTime() + 3_600_000), false, timezone) };
+}
+
+export default function CalendarView({ timezone, openNew: startWithNew = false }: { timezone: string; openNew?: boolean }) {
   const router = useRouter();
   const calendarRef = useRef<FullCalendar>(null);
-  const [dialog, setDialog] = useState<{ id: number; state: DialogState } | null>(null);
+  // "?novo=1" (ação rápida do Painel) já abre o formulário de evento novo
+  const [dialog, setDialog] = useState<{ id: number; state: DialogState } | null>(() => (startWithNew ? { id: 0, state: newEventState(timezone) } : null));
+  useEffect(() => dropParam("novo"), []);
   const [error, setError] = useState<string | null>(null);
   const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
 
@@ -42,10 +53,7 @@ export default function CalendarView({ timezone }: { timezone: string }) {
   }
 
   function openNew() {
-    const start = new Date();
-    start.setMinutes(0, 0, 0);
-    start.setHours(start.getHours() + 1);
-    open({ kind: "create", values: newEventValues(start, new Date(start.getTime() + 3_600_000), false, timezone) });
+    open(newEventState(timezone));
   }
 
   function onSelect(info: DateSelectArg) {

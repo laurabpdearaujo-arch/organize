@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { AlarmClock, Briefcase, CheckCircle2, Flag, FolderKanban, ListTodo, MessageSquare, Pencil, Plus, Trash2 } from "lucide-react";
 import { Modal, inputCls, labelCls, primaryBtn, secondaryBtn } from "@/components/modal";
 import { EVENT_COLORS, colorHex, type EventColor } from "@/lib/calendar/colors";
 import type { TasksData } from "@/lib/tasks/repository";
+import { dropParam } from "@/lib/drop-param";
 import { summary, type TaskArea } from "@/lib/tasks/rules";
 import { createFeedback, createProject, deleteFeedback, deleteProject, updateFeedback, updateProject } from "./actions";
 import { Board, TaskDialog, type Task } from "./board";
@@ -17,11 +18,13 @@ const NO_PROJECT = "__sem";
 
 const brDate = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
 
-export function TasksView({ data, today, initialTab }: { data: TasksData; today: string; initialTab: TasksTab }) {
+export function TasksView({ data, today, initialTab, openNew = false }: { data: TasksData; today: string; initialTab: TasksTab; openNew?: boolean }) {
   const [tab, setTabState] = useState<TasksTab>(initialTab);
   const [view, setView] = useState<View>("board");
   const [project, setProject] = useState<string | null>(null);
-  const [newTask, setNewTask] = useState(false);
+  // "?nova=1" (ação rápida do Painel) já abre o formulário
+  const [newTask, setNewTask] = useState(openNew);
+  useEffect(() => dropParam("nova"), []);
   const [managing, setManaging] = useState(false);
   const area: TaskArea = tab === "carreira" ? "career" : "general";
   const areaTasks = data.tasks.filter((t) => t.area === area);

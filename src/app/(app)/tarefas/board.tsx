@@ -142,7 +142,7 @@ export function Board({
         </button>
         <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]">
           {t.hardDeadline && !done && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-danger px-2 py-0.5 font-medium text-white">
+            <span className="inline-flex items-center gap-1 rounded-full bg-danger/15 px-2 py-0.5 font-medium text-danger ring-1 ring-danger/30">
               <Flag className="size-3" /> Prazo fatal
             </span>
           )}

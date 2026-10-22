@@ -45,6 +45,7 @@ export function FinanceView({
   month,
   today,
   initialTab,
+  openNewTx = false,
 }: {
   data: FinanceData;
   imports: ImportList;
@@ -53,6 +54,8 @@ export function FinanceView({
   month: string;
   today: string;
   initialTab: FinanceTab;
+  /** "?novo=1" (ação rápida do Painel): abre o formulário de lançamento novo */
+  openNewTx?: boolean;
 }) {
   const [tab, setTabState] = useState<FinanceTab>(initialTab);
   const currencies = currenciesInUse(data.accounts.filter((a) => !a.archivedAt));
@@ -117,7 +120,7 @@ export function FinanceView({
       </div>
 
       {tab === "visao" && <Overview data={data} month={month} currency={currency} onGoTo={setTab} />}
-      {tab === "lancamentos" && <TransactionsPanel data={data} month={month} today={today} />}
+      {tab === "lancamentos" && <TransactionsPanel data={data} month={month} today={today} openNew={openNewTx} />}
       {tab === "importar" && <ImportPanel data={data} imports={imports} onGoTo={setTab} />}
       {tab === "pagar" && <BillsPanel data={data} bills={bills} month={month} today={today} />}
       {tab === "investimentos" && <InvestmentsPanel investments={investments} today={today} />}
