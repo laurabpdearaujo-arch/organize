@@ -1,0 +1,1 @@
+ALTER TABLE "book_progress" ADD COLUMN "pages_read" smallint DEFAULT 0 NOT NULL;

@@ -506,3 +506,67 @@ export const studyLogs = pgTable(
     check("study_logs_correct_le_done", sql`${t.questionsCorrect} is null or (${t.questionsDone} is not null and ${t.questionsCorrect} <= ${t.questionsDone})`),
   ],
 ).enableRLS();
+
+// ---------- Leituras e Filmes ----------
+
+/** Livro. Status: quero ler, lendo, lido, abandonado. Página atual = onde parou. */
+export const books = pgTable(
+  "books",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: ownerId(),
+    title: text("title").notNull(),
+    author: text("author"),
+    totalPages: smallint("total_pages"),
+    currentPage: smallint("current_page").notNull().default(0),
+    status: text("status").$type<"want" | "reading" | "read" | "dropped">().notNull().default("want"),
+    startedOn: date("started_on", { mode: "string" }),
+    finishedOn: date("finished_on", { mode: "string" }),
+    rating: smallint("rating"),
+    notes: text("notes"),
+    ...timestamps,
+  },
+  (t) => [
+    index("books_user_idx").on(t.userId, t.status),
+    check("books_rating_1_5", sql`${t.rating} is null or ${t.rating} between 1 and 5`),
+    check("books_pages_ok", sql`${t.currentPage} >= 0 and (${t.totalPages} is null or ${t.totalPages} > 0)`),
+  ],
+).enableRLS();
+
+/** Até onde a pessoa leu em cada dia (uma linha por livro e dia). Serve para o ritmo e a estimativa. */
+export const bookProgress = pgTable(
+  "book_progress",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: ownerId(),
+    bookId: uuid("book_id")
+      .notNull()
+      .references(() => books.id, { onDelete: "cascade" }),
+    date: date("date", { mode: "string" }).notNull(),
+    /** Página em que parou nesse dia. */
+    page: smallint("page").notNull(),
+    /** Páginas lidas nesse dia (soma das atualizações; correções para trás descontam). */
+    pagesRead: smallint("pages_read").notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("book_progress_book_date_uq").on(t.bookId, t.date), index("book_progress_user_date_idx").on(t.userId, t.date)],
+).enableRLS();
+
+/** Filme ou série. Status: quero ver, vendo, visto. Em séries, temporada/episódio onde parou. */
+export const media = pgTable(
+  "media",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: ownerId(),
+    kind: text("kind").$type<"movie" | "series">().notNull(),
+    title: text("title").notNull(),
+    status: text("status").$type<"want" | "watching" | "watched">().notNull().default("want"),
+    season: smallint("season"),
+    episode: smallint("episode"),
+    finishedOn: date("finished_on", { mode: "string" }),
+    rating: smallint("rating"),
+    notes: text("notes"),
+    ...timestamps,
+  },
+  (t) => [index("media_user_idx").on(t.userId, t.status), check("media_rating_1_5", sql`${t.rating} is null or ${t.rating} between 1 and 5`)],
+).enableRLS();

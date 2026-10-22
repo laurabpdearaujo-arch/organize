@@ -92,6 +92,20 @@
       "when": 1792689670017,
       "tag": "0012_study_groups",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792690593234,
+      "tag": "0013_reading",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792690619213,
+      "tag": "0014_book_pages_read",
+      "breakpoints": true
     }
   ]
 }
