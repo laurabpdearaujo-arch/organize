@@ -42,5 +42,9 @@ next-env.d.ts
 
 # documentos pessoais (faturas, extratos, PDFs de estudo) nunca vao para o Git
 *.pdf
+*.mascarado.txt
 *.ofx
 *.csv
+extrato*
+fatura*
+comprovante*
