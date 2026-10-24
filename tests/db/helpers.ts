@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 
 process.loadEnvFile(".env.local");
 
-export const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!.trim(), {
+export const admin = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!.trim(), {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 

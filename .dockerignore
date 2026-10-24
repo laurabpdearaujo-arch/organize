@@ -1,0 +1,15 @@
+# Nada disso entra na imagem: segredos, dependências locais, builds, testes e documentos pessoais.
+.env*
+!.env.example
+node_modules
+.next
+.git
+tests
+scripts
+drizzle
+*.pdf
+*.csv
+*.ofx
+*.mascarado.txt
+Dockerfile
+docker-compose.yml
