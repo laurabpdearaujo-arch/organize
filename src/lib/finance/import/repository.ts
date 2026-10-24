@@ -52,6 +52,7 @@ export async function buildPreview(
 ): Promise<Preview | { error: string }> {
   const [acc] = await db.select().from(accounts).where(and(eq(accounts.id, accountId), eq(accounts.userId, userId)));
   if (!acc) return { error: "Conta não encontrada." };
+  if (acc.type === "cash") return { error: "Dinheiro em espécie não tem extrato. Escolha uma conta de banco ou um cartão." };
 
   const fileHash = sha256(bytes);
   let parsed;

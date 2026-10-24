@@ -30,7 +30,9 @@ function fullDate(d: string) {
 export function ImportPanel({ data, imports, onGoTo }: { data: FinanceData; imports: ImportList; onGoTo: (t: FinanceTab) => void }) {
   const router = useRouter();
   const accounts = data.accounts.filter((a) => !a.archivedAt);
-  const [accountId, setAccountId] = useState(accounts.find((a) => a.type === "checking")?.id ?? accounts[0]?.id ?? "");
+  // Dinheiro (carteira) não tem extrato: só contas de banco e cartões podem receber a importação
+  const statementAccounts = accounts.filter((a) => a.type !== "cash");
+  const [accountId, setAccountId] = useState(statementAccounts.find((a) => a.type === "checking")?.id ?? statementAccounts[0]?.id ?? "");
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -188,7 +190,7 @@ export function ImportPanel({ data, imports, onGoTo }: { data: FinanceData; impo
           <div>
             <label htmlFor="iacc" className={labelCls}>Este extrato/fatura é da conta</label>
             <select id="iacc" className={inputCls} value={accountId} onChange={(e) => setAccountId(e.target.value)} required>
-              {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              {statementAccounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
           </div>
           <div>
