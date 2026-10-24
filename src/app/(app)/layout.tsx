@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { Monogram } from "@/components/monogram";
+import { Logo } from "@/components/logo";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { MobileNav } from "@/components/mobile-nav";
 import { UserBadge } from "@/components/user-badge";
@@ -9,9 +9,9 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
     <div className="min-h-dvh md:flex">
       <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-border bg-card/60 p-3 md:flex">
         <div className="mb-6 flex items-center gap-3 px-2 pt-1">
-          <Monogram className="h-9 w-auto shrink-0 text-primary" weight={1.5} />
+          <Logo className="size-10 shrink-0 text-primary" strokeWidth={5} />
           <div className="leading-tight">
-            <p className="text-sm font-semibold">Organize</p>
+            <p className="text-sm font-semibold">azeitona</p>
             <p className="text-xs text-muted-foreground">Central pessoal</p>
           </div>
         </div>

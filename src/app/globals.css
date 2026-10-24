@@ -14,6 +14,7 @@
   --primary: #a05a61;
   --primary-foreground: #ffffff;
   --primary-soft: #f7e6e8;
+  --logo-leaf: #edb9c2;
   --success: #1f8a5b;
   --danger: #d33c4a;
   --warning: #c27a12;
@@ -30,6 +31,7 @@
   --primary: #e3a3b0;
   --primary-foreground: #2a1519;
   --primary-soft: #3a262c;
+  --logo-leaf: #8c4d58;
   --success: #4cc38a;
   --danger: #f06b77;
   --warning: #e5a33b;
@@ -58,13 +60,18 @@ html.dark {
   color-scheme: dark;
 }
 
+/* Folha do logo (src/components/logo.tsx) */
+.logo-leaf {
+  fill: var(--logo-leaf);
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-inter), system-ui, sans-serif;
 }
 
-/* ---------- FullCalendar: cores e tamanhos do Organize ---------- */
+/* ---------- FullCalendar: cores e tamanhos do site ---------- */
 .fc {
   --fc-border-color: var(--border);
   --fc-page-bg-color: var(--card);
