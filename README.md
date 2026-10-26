@@ -2,21 +2,29 @@
 
 Organizador pessoal: painel do dia, calendário, tarefas (geral e carreira), estudos, finanças, hábitos, leituras e filmes.
 
-**Stack:** Next.js 16 (App Router, TypeScript, Tailwind) · Drizzle ORM · Supabase (Postgres + Auth) · Docker + Caddy na VPS.
+**Stack:** React 19 + Vite (tela) · Hono em Node (API) · Drizzle ORM · Supabase (Postgres + Auth) · Tailwind · Docker + Caddy na VPS.
+
+## Estrutura
+
+- `src/web/`: a tela (React, React Router). Cada página busca seus dados em `GET /api/pages/:pagina` e chama ações em `POST /api/actions/:modulo/:acao` (`src/web/lib/api.ts`). Depois de uma ação que dá certo, os dados das páginas abertas são recarregados.
+- `src/server/`: a API (Hono). `app.ts` junta as rotas; `actions/` tem as ações de cada módulo (validam o payload com zod e filtram pela usuária); `pages.ts` monta os dados de cada página; `auth.ts` resolve a usuária logada pela sessão do Supabase (cookie `HttpOnly`).
+- `src/lib/`: regras, consultas ao banco e leitores de PDF, usados pelo servidor. A tela só importa daqui funções puras e tipos (o lint bloqueia importar código do servidor na tela).
+- `src/db/`: esquema do banco (Drizzle). Migrações em `drizzle/`.
+
+Segurança: toda rota da API (menos o login) exige sessão; escrita só com `Origin` do próprio site (CSRF); respostas com cabeçalhos de segurança; nenhum segredo vai para o navegador.
 
 ## Desenvolvimento
 
 ```bash
 npm ci
 cp .env.example .env.local   # preencha com os dados do Supabase
-npm run dev                  # http://localhost:3000
+npm run dev                  # http://localhost:3000 (tela + API no mesmo endereço)
 ```
 
 - `npm test`: testes unitários (regras puras).
-- `npm run test:db`: integração contra o banco (cria e apaga usuárias temporárias; precisa de `SUPABASE_SECRET_KEY`).
-- `npm run db:generate` / `npm run db:migrate`: migrações do Drizzle (pasta `drizzle/`). As migrações rodam a partir da máquina de desenvolvimento, não do contêiner.
-
-Todo acesso ao banco é feito no servidor e filtrado pelo usuário logado (`getCurrentUser`); as tabelas têm RLS ligado e sem permissões para os papéis públicos do Supabase.
+- `npm run test:db`: integração contra o banco e testes da API (criam e apagam usuárias temporárias; precisa de `SUPABASE_SECRET_KEY`).
+- `npm run build` e `npm start`: versão de produção (`dist/web` + `dist/server/index.js`).
+- `npm run db:generate` / `npm run db:migrate`: migrações do Drizzle. As migrações rodam a partir da máquina de desenvolvimento, não do contêiner.
 
 ## Deploy na VPS (Docker Compose, atrás do edge proxy)
 

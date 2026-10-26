@@ -1,0 +1,135 @@
+@import "tailwindcss";
+
+/* Modo escuro controlado pela classe .dark no <html> (script no index.html) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  /* Fonte Inter servida pelo próprio site (@fontsource-variable/inter, importada em main.tsx) */
+  --font-inter: "Inter Variable";
+  /* Rosé queimado (paleta de cores_e_nova_aba.pdf; primário escurecido para contraste ≥ 4,5 com branco) */
+  --background: #fbf6f7;
+  --foreground: #251c1f;
+  --card: #ffffff;
+  --muted: #f5ebed;
+  --muted-foreground: #76666b;
+  --border: #eedfe2;
+  --primary: #a05a61;
+  --primary-foreground: #ffffff;
+  --primary-soft: #f7e6e8;
+  --logo-leaf: #edb9c2;
+  --success: #1f8a5b;
+  --danger: #d33c4a;
+  --warning: #c27a12;
+}
+
+.dark {
+  --background: #161214;
+  --foreground: #f1e8eb;
+  --card: #1f191b;
+  --muted: #2a2125;
+  --muted-foreground: #a7959b;
+  --border: #3a2d32;
+  /* no escuro o rosé é claro, então o texto em cima dele é escuro */
+  --primary: #e3a3b0;
+  --primary-foreground: #2a1519;
+  --primary-soft: #3a262c;
+  --logo-leaf: #8c4d58;
+  --success: #4cc38a;
+  --danger: #f06b77;
+  --warning: #e5a33b;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+  --font-sans: var(--font-inter);
+}
+
+html {
+  color-scheme: light;
+}
+html.dark {
+  color-scheme: dark;
+}
+
+/* Folha do logo (src/components/logo.tsx) */
+.logo-leaf {
+  fill: var(--logo-leaf);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-inter), system-ui, sans-serif;
+}
+
+/* ---------- FullCalendar: cores e tamanhos do site ---------- */
+.fc {
+  --fc-border-color: var(--border);
+  --fc-page-bg-color: var(--card);
+  --fc-neutral-bg-color: var(--muted);
+  --fc-list-event-hover-bg-color: var(--muted);
+  --fc-today-bg-color: color-mix(in srgb, var(--primary) 7%, transparent);
+  --fc-now-indicator-color: var(--danger);
+  --fc-highlight-color: color-mix(in srgb, var(--primary) 15%, transparent);
+  --fc-button-text-color: var(--foreground);
+  --fc-button-bg-color: var(--card);
+  --fc-button-border-color: var(--border);
+  --fc-button-hover-bg-color: var(--muted);
+  --fc-button-hover-border-color: var(--border);
+  --fc-button-active-bg-color: var(--primary);
+  --fc-button-active-border-color: var(--primary);
+  font-size: 0.8125rem;
+}
+.fc .fc-toolbar {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.fc .fc-toolbar-title {
+  font-size: 1rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+.fc .fc-button {
+  border-radius: 0.5rem;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.8125rem;
+  text-transform: none;
+  box-shadow: none !important;
+}
+.fc .fc-button-primary:not(:disabled).fc-button-active,
+.fc .fc-button-primary:not(:disabled):active {
+  color: var(--primary-foreground);
+}
+.fc .fc-col-header-cell-cushion,
+.fc .fc-daygrid-day-number {
+  color: var(--muted-foreground);
+  font-weight: 500;
+  text-transform: capitalize;
+}
+.fc .fc-event {
+  border-radius: 0.375rem;
+  cursor: pointer;
+}
+.fc .fc-list-day-cushion {
+  background: var(--muted);
+  text-transform: capitalize;
+}
+@media (max-width: 767px) {
+  .fc .fc-toolbar {
+    justify-content: center;
+  }
+  .fc .fc-toolbar-title {
+    font-size: 0.95rem;
+  }
+}

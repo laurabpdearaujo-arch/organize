@@ -1,4 +1,3 @@
-import "server-only";
 import { and, asc, eq, isNull, lt } from "drizzle-orm";
 import { db } from "@/db";
 import { habitGoals, habitLogs, habitPauses, habits } from "@/db/schema";

@@ -1,4 +1,3 @@
-import "server-only";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { bookProgress, books, media } from "@/db/schema";

@@ -5,13 +5,9 @@ import { defineConfig } from "vitest/config";
 process.env.TZ = "UTC";
 
 export default defineConfig({
-  resolve: { tsconfigPaths: true },
+  resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],
-    alias: {
-      // "server-only" bloqueia import fora do servidor Next; nos testes é inofensivo.
-      "server-only": fileURLToPath(new URL("./tests/stubs/server-only.ts", import.meta.url)),
-    },
   },
 });

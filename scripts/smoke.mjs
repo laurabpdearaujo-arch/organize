@@ -1,7 +1,7 @@
 // Smoke test logado: cria usuária temporária, gera cookie de sessão do @supabase/ssr,
-// visita páginas no servidor de dev e apaga a usuária.
-// Uso (com `npm run dev` rodando, dentro de organize/): node scripts/smoke.mjs . / /habitos
-// Erros do servidor aparecem em .next/dev/logs/next-development.log
+// pede os dados de cada página à API e apaga a usuária.
+// Uso (com `npm run dev` rodando, dentro de organize/): node scripts/smoke.mjs . / /habitos "/financas?mes=2026-10"
+// Cada caminho de tela vira /api/pages/<pagina> ("/" = painel); caminhos /api/... são pedidos como estão.
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -36,7 +36,9 @@ try {
       : Array.from({ length: Math.ceil(value.length / CHUNK) }, (_, i) => `${name}.${i}=${value.slice(i * CHUNK, (i + 1) * CHUNK)}`).join("; ");
 
   for (const p of paths) {
-    const res = await fetch(`${base}${p}`, { headers: { cookie }, redirect: "manual" });
+    const [route, query = ""] = p.split("?");
+    const api = route.startsWith("/api") ? p : `/api/pages/${route === "/" ? "painel" : route.slice(1)}${query ? `?${query}` : ""}`;
+    const res = await fetch(`${base}${api}`, { headers: { cookie }, redirect: "manual" });
     const body = await res.text();
     const suspicious = body.includes("Error") && body.includes("digest");
     console.log(`${p} -> ${res.status} ${res.headers.get("location") ?? ""}${suspicious ? " (possível erro na página)" : ""}`);

@@ -1,0 +1,30 @@
+// Ações de "financas" chamadas pela tela. Mesmas funções do servidor (src/server/actions/financas.ts), via API.
+import { serverAction } from "@/web/lib/api";
+import type * as S from "@/server/actions/financas";
+
+export const saveAccount = serverAction<typeof S.saveAccount>("financas", "saveAccount");
+export const adjustAccountBalance = serverAction<typeof S.adjustAccountBalance>("financas", "adjustAccountBalance");
+export const archiveAccount = serverAction<typeof S.archiveAccount>("financas", "archiveAccount");
+export const deleteAccount = serverAction<typeof S.deleteAccount>("financas", "deleteAccount");
+export const saveCategory = serverAction<typeof S.saveCategory>("financas", "saveCategory");
+export const archiveCategory = serverAction<typeof S.archiveCategory>("financas", "archiveCategory");
+export const saveTransaction = serverAction<typeof S.saveTransaction>("financas", "saveTransaction");
+export const deleteTransaction = serverAction<typeof S.deleteTransaction>("financas", "deleteTransaction");
+export const commitImport = serverAction<typeof S.commitImport>("financas", "commitImport");
+export const undoImport = serverAction<typeof S.undoImport>("financas", "undoImport");
+export const saveBill = serverAction<typeof S.saveBill>("financas", "saveBill");
+export const archiveBill = serverAction<typeof S.archiveBill>("financas", "archiveBill");
+export const deleteBill = serverAction<typeof S.deleteBill>("financas", "deleteBill");
+export const setBillPaid = serverAction<typeof S.setBillPaid>("financas", "setBillPaid");
+export const saveInvestment = serverAction<typeof S.saveInvestment>("financas", "saveInvestment");
+export const archiveInvestment = serverAction<typeof S.archiveInvestment>("financas", "archiveInvestment");
+export const deleteInvestment = serverAction<typeof S.deleteInvestment>("financas", "deleteInvestment");
+export const addInvestmentMovement = serverAction<typeof S.addInvestmentMovement>("financas", "addInvestmentMovement");
+export const deleteInvestmentMovement = serverAction<typeof S.deleteInvestmentMovement>("financas", "deleteInvestmentMovement");
+export const setInvestmentValue = serverAction<typeof S.setInvestmentValue>("financas", "setInvestmentValue");
+export const deleteInvestmentValue = serverAction<typeof S.deleteInvestmentValue>("financas", "deleteInvestmentValue");
+export const saveGoal = serverAction<typeof S.saveGoal>("financas", "saveGoal");
+export const archiveGoal = serverAction<typeof S.archiveGoal>("financas", "archiveGoal");
+export const deleteGoal = serverAction<typeof S.deleteGoal>("financas", "deleteGoal");
+export const addContribution = serverAction<typeof S.addContribution>("financas", "addContribution");
+export const deleteContribution = serverAction<typeof S.deleteContribution>("financas", "deleteContribution");

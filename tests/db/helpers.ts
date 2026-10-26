@@ -21,3 +21,12 @@ export async function createTempUser() {
 export async function deleteTempUser(id: string) {
   if (id) await admin.auth.admin.deleteUser(id);
 }
+
+/** Como createTempUser, mas devolve também e-mail e senha (para testar o login de verdade). */
+export async function createTempLogin() {
+  const email = `teste-${randomUUID()}@example.com`;
+  const password = randomUUID();
+  const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
+  if (error) throw error;
+  return { id: data.user.id, email, password };
+}

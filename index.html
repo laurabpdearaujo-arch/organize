@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="pt-BR" class="h-full antialiased">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>azeitona</title>
+    <meta name="description" content="Central pessoal: calendário, estudos, finanças, hábitos, leituras e tarefas." />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#fbf6f7" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#161214" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <!-- Aplica o tema salvo antes da primeira pintura (evita "piscar" claro→escuro).
+         localStorage("theme"): "light" | "dark" | ausente (segue o sistema). -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("theme");
+          var d = t ? t === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+          document.documentElement.classList.toggle("dark", d);
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body class="min-h-full">
+    <div id="root"></div>
+    <script type="module" src="/src/web/main.tsx"></script>
+  </body>
+</html>

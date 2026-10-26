@@ -1,4 +1,3 @@
-import "server-only";
 import { and, eq, gt, inArray, isNotNull, lt, or } from "drizzle-orm";
 import { db } from "@/db";
 import { eventExceptions, events } from "@/db/schema";

@@ -60,8 +60,8 @@ function maskToken(tok) {
   const n = norm(tok);
   if (n.length <= 1 || KEYWORDS.has(n)) return tok;
   // termos colados por ponto/barra (ex.: "DEB.AUT", "C/SAL"): checa cada parte
-  const parts = tok.split(/([./:\-])/);
-  if (parts.length > 1) return parts.map((p) => (/[./:\-]/.test(p) ? p : maskToken(p))).join("");
+  const parts = tok.split(/([./:-])/);
+  if (parts.length > 1) return parts.map((p) => (/[./:-]/.test(p) ? p : maskToken(p))).join("");
   return tok.replace(/\p{L}/gu, "X");
 }
 

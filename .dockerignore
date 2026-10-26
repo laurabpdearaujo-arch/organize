@@ -3,10 +3,12 @@
 !.env.example
 node_modules
 .next
+dist
 .git
 tests
 scripts
 drizzle
+drizzle.config.ts
 *.pdf
 *.csv
 *.ofx

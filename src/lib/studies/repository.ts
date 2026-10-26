@@ -1,4 +1,3 @@
-import "server-only";
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { studyItems, studyLogs, studyPlans } from "@/db/schema";
