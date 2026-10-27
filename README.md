@@ -45,16 +45,13 @@ cp .env.example .env    # preencha SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY e DATA
 docker compose up -d --build
 ```
 
-Bloco para o `Caddyfile` do edge:
+Bloco para o `Caddyfile` do edge (tela e API saem do mesmo contêiner) e `AZEITONA_DOMAIN=azeitona.<domínio>` no `.env`/`environment` do edge:
 
 ```caddy
 # azeitona
 http://{$AZEITONA_DOMAIN} {
 	encode gzip
-	reverse_proxy azeitona-web:3000 {
-		# O visitante chega por HTTPS no Cloudflare; sem isto, os redirecionamentos do app sairiam como http://
-		header_up X-Forwarded-Proto https
-	}
+	reverse_proxy azeitona-web:3000
 }
 ```
 
