@@ -10,6 +10,7 @@ const client =
   postgres(process.env.DATABASE_URL!.trim(), {
     prepare: false, // compatível com o pooler do Supabase
     max: 5,
+    ssl: "require", // TLS sempre, mesmo que a URL venha sem ?sslmode=require (e a URL não consegue desligar)
   });
 
 if (process.env.NODE_ENV !== "production") globalForDb.pgClient = client;

@@ -1,6 +1,6 @@
 # azeitona — mesmo padrão das outras apps da VPS: sem portas nem TLS aqui.
-# O edge proxy compartilhado (Caddy, porta 80) encaminha azeitona.<domínio> para azeitona-web:3000,
-# e o Cloudflare cuida do HTTPS. Precisa da rede externa:  docker network create web
+# O edge compartilhado (viniaraujo68/edge), atrás de um Cloudflare Tunnel, encaminha para azeitona-web:3000.
+# Precisa da rede externa:  docker network create web
 services:
   web:
     build: .

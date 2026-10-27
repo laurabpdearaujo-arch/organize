@@ -28,31 +28,23 @@ npm run dev                  # http://localhost:3000 (tela + API no mesmo endere
 
 ## Deploy na VPS (Docker Compose, atrás do edge proxy)
 
-Segue o mesmo padrão das outras apps da VPS: o contêiner não expõe portas nem cuida de TLS. O Caddy compartilhado
-(edge, porta 80) encaminha `azeitona.<domínio>` para `azeitona-web:3000` pela rede Docker `web`, e o Cloudflare fornece o HTTPS.
+Segue o mesmo padrão das outras apps da VPS: o contêiner não expõe portas nem cuida de TLS. A VPS não publica
+porta HTTP nenhuma: o Cloudflare traz o tráfego por um Cloudflare Tunnel (criptografado) até o edge compartilhado
+(Caddy), que encaminha `azeitona.<domínio>` para `azeitona-web:3000` pela rede Docker `web`. O HTTPS é obrigatório
+(redirect e HSTS no Cloudflare).
 
 ```
-Cloudflare (HTTPS) → VPS:80 → edge (Caddy) → azeitona-web:3000 → Supabase
+Visitante ─HTTPS→ Cloudflare ─túnel→ edge (Caddy) → azeitona-web:3000 ─TLS→ Supabase
 ```
+
+O bloco do Caddy fica no repo do edge, [viniaraujo68/edge](https://github.com/viniaraujo68/edge), em
+`sites/azeitona.caddy`. Ele e a rota do túnel já estão prontos.
 
 ```bash
-# rede compartilhada (uma vez só; provavelmente já existe)
-docker network create web
-
-git clone git@github.com:laurabpdearaujo-arch/organize.git azeitona
-cd azeitona
-cp .env.example .env    # preencha SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY e DATABASE_URL
+git clone https://github.com/laurabpdearaujo-arch/organize.git /opt/organize
+cd /opt/organize
+cp .env.example .env    # preencha SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY e DATABASE_URL (com ?sslmode=require no fim)
 docker compose up -d --build
-```
-
-Bloco para o `Caddyfile` do edge (tela e API saem do mesmo contêiner) e `AZEITONA_DOMAIN=azeitona.<domínio>` no `.env`/`environment` do edge:
-
-```caddy
-# azeitona
-http://{$AZEITONA_DOMAIN} {
-	encode gzip
-	reverse_proxy azeitona-web:3000
-}
 ```
 
 Atualizar depois de novos commits: `git pull && docker compose up -d --build`.
