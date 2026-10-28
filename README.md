@@ -11,7 +11,7 @@ Organizador pessoal: painel do dia, calendário, tarefas (geral e carreira), est
 - `src/lib/`: regras, consultas ao banco e leitores de PDF, usados pelo servidor. A tela só importa daqui funções puras e tipos (o lint bloqueia importar código do servidor na tela).
 - `src/db/`: esquema do banco (Drizzle). Migrações em `drizzle/`.
 
-Segurança: toda rota da API (menos o login) exige sessão; escrita só com `Origin` do próprio site (CSRF); respostas com cabeçalhos de segurança; nenhum segredo vai para o navegador.
+Segurança: toda rota da API (menos entrar e criar conta) exige sessão; criar conta só com o código de convite (`SIGNUP_CODE`), com limite de tentativas por IP; escrita só com `Origin` do próprio site (CSRF); respostas com cabeçalhos de segurança; nenhum segredo vai para o navegador.
 
 ## Desenvolvimento
 
@@ -43,7 +43,8 @@ O bloco do Caddy fica no repo do edge, [viniaraujo68/edge](https://github.com/vi
 ```bash
 git clone https://github.com/laurabpdearaujo-arch/organize.git /opt/organize
 cd /opt/organize
-cp .env.example .env    # preencha SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY e DATABASE_URL (com ?sslmode=require no fim)
+cp .env.example .env    # preencha SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY e DATABASE_URL (com ?sslmode=require no fim);
+                        # para o cadastro com convite, também SIGNUP_CODE e SUPABASE_SECRET_KEY
 docker compose up -d --build
 ```
 

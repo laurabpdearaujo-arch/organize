@@ -3,7 +3,7 @@
  * ações de cada módulo pela API, importação de PDF e isolamento entre duas usuárias.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createTempLogin, deleteTempUser } from "../db/helpers";
+import { admin, createTempLogin, deleteTempUser } from "../db/helpers";
 import { ApiClient } from "./client";
 
 let dbModule: typeof import("@/db");
@@ -102,6 +102,44 @@ describe("login e segurança", () => {
   it("payload inválido vira mensagem amigável, não erro 500", async () => {
     expect(await A.action("tarefas", "createTask", { area: "general", title: "" })).toEqual({ ok: false, error: "Dê um título." });
     expect((await A.action("calendario", "saveEvent", { mode: "nada" })).ok).toBe(false);
+  });
+});
+
+describe("criar conta com código de convite", () => {
+  const signup = (c: ApiClient, body: unknown, ip = "203.0.113.7") =>
+    c.raw("/api/auth/signup", { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": ip }, body: JSON.stringify(body) });
+  const email = `teste-convite-${Date.now()}@example.com`;
+  const saved = process.env.SIGNUP_CODE;
+
+  afterAll(async () => {
+    process.env.SIGNUP_CODE = saved;
+    const { data } = await admin.auth.admin.listUsers({ perPage: 1000 });
+    await deleteTempUser(data.users.find((u) => u.email === email)?.id ?? "");
+  });
+
+  it("sem SIGNUP_CODE configurado, o cadastro fica fechado", async () => {
+    delete process.env.SIGNUP_CODE;
+    expect((await signup(new ApiClient(), { email, password: "senha-boa-123", code: "x" })).status).toBe(403);
+  });
+
+  it("código errado ou senha curta: recusa; código certo: cria e já entra logada", async () => {
+    process.env.SIGNUP_CODE = "convite-teste";
+    const c = new ApiClient();
+    expect((await signup(c, { email, password: "senha-boa-123", code: "errado" })).status).toBe(403);
+    expect((await signup(c, { email, password: "curta", code: "convite-teste" })).status).toBe(400);
+    expect((await signup(c, { email, password: "senha-boa-123", code: " convite-teste " })).status).toBe(200);
+    expect(await (await c.raw("/api/auth/me")).json()).toMatchObject({ email });
+    // o mesmo e-mail de novo
+    expect((await signup(new ApiClient(), { email, password: "outra-senha-123", code: "convite-teste" })).status).toBe(409);
+  }, 30_000);
+
+  it("muitas tentativas com código errado bloqueiam aquele IP", async () => {
+    process.env.SIGNUP_CODE = "convite-teste";
+    const c = new ApiClient();
+    for (let i = 0; i < 10; i++) expect((await signup(c, { email: "x@example.com", password: "senha-boa-123", code: `chute-${i}` }, "198.51.100.9")).status).toBe(403);
+    expect((await signup(c, { email: "x@example.com", password: "senha-boa-123", code: "convite-teste" }, "198.51.100.9")).status).toBe(429);
+    // outro IP continua podendo
+    expect((await signup(c, { email: "x@example.com", password: "senha-boa-123", code: "errado" }, "198.51.100.10")).status).toBe(403);
   });
 });
 

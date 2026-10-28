@@ -5,7 +5,8 @@ services:
   web:
     build: .
     restart: unless-stopped
-    # SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY e DATABASE_URL (veja .env.example). O .env fica só na VPS.
+    # SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, DATABASE_URL e, para o cadastro com convite, SIGNUP_CODE e
+    # SUPABASE_SECRET_KEY (veja .env.example). O .env fica só na VPS.
     env_file: .env
     networks:
       web:
