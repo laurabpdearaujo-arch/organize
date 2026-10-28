@@ -3,10 +3,11 @@ import { apiFetch } from "@/web/lib/api";
 import { AlertTriangle, CheckCircle2, FileUp, Info } from "lucide-react";
 import { inputCls, labelCls, primaryBtn, secondaryBtn } from "@/web/components/modal";
 import type { FinanceData } from "@/lib/finance/repository";
+import { accountLabel } from "@/lib/finance/constants";
 import type { Preview } from "@/lib/finance/import/repository";
 import { patternOf, type TxKind } from "@/lib/finance/import/prepare";
 import { formatMoney } from "@/lib/finance/money";
-import { commitImport } from "./actions";
+import { commitImport, saveAccount } from "./actions";
 import type { FinanceTab, ImportList } from "./finance-view";
 import { undoImport } from "./actions";
 
@@ -27,9 +28,18 @@ function fullDate(d: string) {
 
 export function ImportPanel({ data, imports, onGoTo }: { data: FinanceData; imports: ImportList; onGoTo: (t: FinanceTab) => void }) {
   const accounts = data.accounts.filter((a) => !a.archivedAt);
-  // Dinheiro (carteira) não tem extrato: só contas de banco e cartões podem receber a importação
-  const statementAccounts = accounts.filter((a) => a.type !== "cash");
-  const [accountId, setAccountId] = useState(statementAccounts.find((a) => a.type === "checking")?.id ?? statementAccounts[0]?.id ?? "");
+  // Escolhe o banco (dinheiro não tem extrato) e se o PDF é o extrato da conta ou a fatura do cartão
+  // pago por ela (ou de um cartão sem conta ligada).
+  const banks = accounts.filter((a) => a.type !== "cash" && a.type !== "credit_card");
+  const [bankId, setBankId] = useState(banks.find((a) => a.type === "checking")?.id ?? banks[0]?.id ?? "");
+  const [kind, setKind] = useState<"statement" | "bill">("statement");
+  const [cardId, setCardId] = useState("");
+  const [newCardName, setNewCardName] = useState(""); // vazio = "Cartão <banco>"
+  const [newCardDue, setNewCardDue] = useState("");
+  const bank = banks.find((b) => b.id === bankId);
+  const cardOptions = accounts.filter((c) => c.type === "credit_card" && (c.paymentAccountId === bankId || !banks.some((b) => b.id === c.paymentAccountId)));
+  const chosenCard = cardOptions.find((c) => c.id === cardId) ?? cardOptions[0];
+  const [acceptKind, setAcceptKind] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,18 +49,32 @@ export function ImportPanel({ data, imports, onGoTo }: { data: FinanceData; impo
   const [result, setResult] = useState<{ imported: number; skipped: number } | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const account = accounts.find((a) => a.id === (preview?.accountId ?? accountId));
+  const account = accounts.find((a) => a.id === preview?.accountId);
   const cur = account?.currency ?? "BRL";
 
   async function analyze(e: React.FormEvent) {
     e.preventDefault();
-    if (!file || !accountId) return;
+    if (!file || !bank) return;
     setLoading(true);
     setError(null);
     try {
+      let target = kind === "statement" ? bank.id : chosenCard?.id;
+      if (!target) {
+        // fatura de um banco que ainda não tem cartão: cria o cartão ligado a ele e segue
+        const r = await saveAccount({
+          id: null,
+          input: { name: newCardName.trim() || `Cartão ${bank.name}`, type: "credit_card", currency: bank.currency, initialBalance: "", color: bank.color, closingDay: null, dueDay: Number(newCardDue) || null, paymentAccountId: bank.id },
+        });
+        if (!r.ok || !r.id) {
+          setError(r.ok ? "Não foi possível criar o cartão." : r.error);
+          return;
+        }
+        target = r.id;
+        setCardId(r.id);
+      }
       const fd = new FormData();
       fd.set("file", file);
-      fd.set("accountId", accountId);
+      fd.set("accountId", target);
       const res = await apiFetch("/api/financas/importar", { method: "POST", body: fd }); // 401 → login
       const body = await res.json();
       if (!res.ok) {
@@ -60,6 +84,7 @@ export function ImportPanel({ data, imports, onGoTo }: { data: FinanceData; impo
       const p = body as Preview;
       setPreview(p);
       setAcceptMismatch(false);
+      setAcceptKind(false);
       setRows(
         p.rows.map((r) => ({
           include: r.status === "new" && r.reversalOf === null,
@@ -104,7 +129,9 @@ export function ImportPanel({ data, imports, onGoTo }: { data: FinanceData; impo
   }, [selected]);
   const missingTransfer = selected.some(({ r }) => r.type === "transfer" && !r.toAccountId);
   const mismatch = preview?.reconciliation.status === "mismatch";
-  const canImport = selected.length > 0 && !missingTransfer && (!mismatch || acceptMismatch);
+  // escolheu "extrato" e o PDF tem cara de fatura (ou o contrário): só importa depois de confirmar
+  const kindMismatch = !!preview && preview.looksLikeCardBill !== (account?.type === "credit_card");
+  const canImport = selected.length > 0 && !missingTransfer && (!mismatch || acceptMismatch) && (!kindMismatch || acceptKind);
 
   function confirm() {
     if (!preview || !canImport) return;
@@ -174,26 +201,72 @@ export function ImportPanel({ data, imports, onGoTo }: { data: FinanceData; impo
         <div>
           <h2 className="font-medium">Importar extrato ou fatura em PDF</h2>
           <p className="text-sm text-muted-foreground">
-            Extrato de conta: escolha a conta do banco. Fatura do cartão: escolha a conta do cartão (as compras viram despesas do cartão,
-            e o pagamento da fatura é reconhecido como transferência, sem contar em dobro). Funciona com PDF com texto (não print/foto).
-            O arquivo é lido e descartado; nada é gravado antes de você revisar e confirmar.
+            Escolha o banco e diga se o PDF é o extrato da conta ou a fatura do cartão. Na fatura, as compras viram despesas do cartão; no
+            extrato, o pagamento da fatura vira transferência para o cartão (sem contar em dobro). Funciona com PDF com texto (não
+            print/foto). O arquivo é lido e descartado; nada é gravado antes de você revisar e confirmar.
           </p>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <label htmlFor="iacc" className={labelCls}>Este extrato/fatura é da conta</label>
-            <select id="iacc" className={inputCls} value={accountId} onChange={(e) => setAccountId(e.target.value)} required>
-              {statementAccounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="ifile" className={labelCls}>Arquivo PDF (até 5 MB)</label>
-            <input id="ifile" type="file" accept="application/pdf,.pdf" className={`${inputCls} file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-2 file:py-1 file:text-sm`} onChange={(e) => setFile(e.target.files?.[0] ?? null)} required />
-          </div>
-        </div>
+        {banks.length === 0 ? (
+          <p className="rounded-lg bg-muted px-3 py-2 text-sm">Cadastre primeiro a conta do banco (Visão geral → Nova conta).</p>
+        ) : (
+          <>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label htmlFor="iacc" className={labelCls}>Banco</label>
+                <select id="iacc" className={inputCls} value={bankId} onChange={(e) => { setBankId(e.target.value); setCardId(""); }} required>
+                  {banks.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <p className={labelCls}>O PDF é</p>
+                <div className="flex gap-1 rounded-lg bg-muted p-1 text-sm" role="radiogroup" aria-label="Tipo de PDF">
+                  {(
+                    [
+                      ["statement", "Extrato da conta"],
+                      ["bill", "Fatura do cartão"],
+                    ] as const
+                  ).map(([k, label]) => (
+                    <button key={k} type="button" role="radio" aria-checked={kind === k} onClick={() => setKind(k)} className={`flex-1 rounded-md px-2 py-1.5 ${kind === k ? "bg-card font-medium shadow-sm" : "text-muted-foreground"}`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            {kind === "bill" &&
+              (cardOptions.length > 1 ? (
+                <div>
+                  <label htmlFor="icard" className={labelCls}>Qual cartão</label>
+                  <select id="icard" className={inputCls} value={chosenCard?.id ?? ""} onChange={(e) => setCardId(e.target.value)}>
+                    {cardOptions.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+              ) : chosenCard ? (
+                <p className="text-sm text-muted-foreground">As compras vão para o cartão “{chosenCard.name}”.</p>
+              ) : (
+                <div className="space-y-2 rounded-lg bg-muted/60 p-3">
+                  <p className="text-sm">O {bank?.name} ainda não tem cartão cadastrado. Ele será criado agora, dentro da conta:</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label htmlFor="icname" className={labelCls}>Nome do cartão</label>
+                      <input id="icname" className={inputCls} value={newCardName} onChange={(e) => setNewCardName(e.target.value)} placeholder={`Cartão ${bank?.name ?? ""}`} maxLength={60} />
+                    </div>
+                    <div>
+                      <label htmlFor="icdue" className={labelCls}>Dia do vencimento</label>
+                      <input id="icdue" type="number" min={1} max={31} className={inputCls} value={newCardDue} onChange={(e) => setNewCardDue(e.target.value)} required />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            <div>
+              <label htmlFor="ifile" className={labelCls}>Arquivo PDF (até 5 MB)</label>
+              <input id="ifile" type="file" accept="application/pdf,.pdf" className={`${inputCls} file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-2 file:py-1 file:text-sm`} onChange={(e) => setFile(e.target.files?.[0] ?? null)} required />
+            </div>
+          </>
+        )}
         {error && <p role="alert" className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
-        <button type="submit" disabled={loading || !file} className={`flex items-center gap-1.5 ${primaryBtn}`}>
-          <FileUp className="size-4" /> {loading ? "Lendo…" : "Ler extrato"}
+        <button type="submit" disabled={loading || !file || !bank} className={`flex items-center gap-1.5 ${primaryBtn}`}>
+          <FileUp className="size-4" /> {loading ? "Lendo…" : kind === "statement" ? "Ler extrato" : chosenCard ? "Ler fatura" : "Criar cartão e ler fatura"}
         </button>
       </form>
 
@@ -278,6 +351,19 @@ export function ImportPanel({ data, imports, onGoTo }: { data: FinanceData; impo
             <Info className="size-4 shrink-0" /> Este mesmo arquivo já foi importado em {fullDate(preview.alreadyImportedAt.slice(0, 10))}. Os lançamentos repetidos serão ignorados.
           </p>
         )}
+        {kindMismatch && (
+          <div className="space-y-2 rounded-lg bg-warning/10 px-3 py-2 text-sm text-warning">
+            <p className="flex items-center gap-2">
+              <AlertTriangle className="size-4 shrink-0" />
+              {preview.looksLikeCardBill
+                ? "Este PDF parece uma FATURA de cartão (tem “Resumo da fatura” ou “Pagamento mínimo”), mas foi lido como extrato da conta: as compras entrariam como receita. Clique em Cancelar e escolha “Fatura do cartão”."
+                : "Este PDF não parece uma fatura de cartão (não achei “Resumo da fatura” nem “Pagamento mínimo”). Se for o extrato da conta, clique em Cancelar e escolha “Extrato da conta”."}
+            </p>
+            <label className="flex items-center gap-2 text-foreground">
+              <input type="checkbox" checked={acceptKind} onChange={(e) => setAcceptKind(e.target.checked)} /> Conferi, está certo assim
+            </label>
+          </div>
+        )}
         {preview.warnings.map((w) => (
           <p key={w} className="text-sm text-warning">⚠ {w}</p>
         ))}
@@ -332,7 +418,7 @@ export function ImportPanel({ data, imports, onGoTo }: { data: FinanceData; impo
                     {r.type === "transfer" ? (
                       <select className={`${inputCls} py-1.5 ${!r.toAccountId && r.include ? "border-warning" : ""}`} value={r.toAccountId} onChange={(e) => classify(i, { toAccountId: e.target.value })} aria-label={isIn ? "Veio da conta" : "Foi para a conta"}>
                         <option value="">{isIn ? "Veio de qual conta?" : "Foi para qual conta?"}</option>
-                        {otherAccounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                        {otherAccounts.map((a) => <option key={a.id} value={a.id}>{accountLabel(a)}</option>)}
                       </select>
                     ) : (
                       <select className={`${inputCls} py-1.5`} value={r.categoryId} onChange={(e) => classify(i, { categoryId: e.target.value })} aria-label="Categoria">

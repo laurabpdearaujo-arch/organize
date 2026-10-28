@@ -37,10 +37,12 @@ export const accountInputSchema = z
     color: z.enum(EVENT_COLOR_KEYS),
     closingDay: z.number().int().min(1).max(31).nullable(),
     dueDay: z.number().int().min(1).max(31).nullable(),
+    /** Cartão: conta que paga a fatura. */
+    paymentAccountId: z.uuid().nullable().default(null),
   })
   .superRefine((v, ctx) => {
-    if (v.type === "credit_card" && (!v.closingDay || !v.dueDay)) {
-      ctx.addIssue({ code: "custom", message: "Informe o dia de fechamento e de vencimento do cartão.", path: ["closingDay"] });
+    if (v.type === "credit_card" && !v.dueDay) {
+      ctx.addIssue({ code: "custom", message: "Informe o dia de vencimento do cartão.", path: ["dueDay"] });
     }
   });
 

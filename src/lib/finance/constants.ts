@@ -10,6 +10,11 @@ export const ACCOUNT_TYPE_LABEL: Record<AccountType, string> = {
   credit_card: "Cartão de crédito",
 };
 
+/** Nome da conta nas listas: cartão fica claro mesmo quando o nome não diz ("Nubank (cartão)"). */
+export function accountLabel(a: { name: string; type: AccountType }) {
+  return a.type === "credit_card" && !/cart[ãa]o/i.test(a.name) ? `${a.name} (cartão)` : a.name;
+}
+
 export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   pix: "Pix",
   debit: "Débito",

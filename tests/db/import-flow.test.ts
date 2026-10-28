@@ -20,6 +20,30 @@ const acc = (name: string, type: "checking" | "credit_card" = "checking") => ({
   dueDay: type === "credit_card" ? 10 : null,
 });
 
+/** PDF de verdade (Helvetica) com cada pedaço numa coluna: [x, texto] por item, uma linha por array. */
+function makePdf(lines: [number, string][][]) {
+  const esc = (s: string) => s.replace(/[\\()]/g, (m) => `\\${m}`);
+  const items = lines.flatMap((l, i) => l.map(([x, s]) => `1 0 0 1 ${x} ${780 - i * 16} Tm (${esc(s)}) Tj`));
+  const content = ["BT", "/F1 9 Tf", ...items, "ET"].join("\n");
+  const objs = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
+    `<< /Length ${Buffer.byteLength(content, "latin1")} >>\nstream\n${content}\nendstream`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+  ];
+  let out = "%PDF-1.4\n";
+  const offsets: number[] = [];
+  objs.forEach((o, i) => {
+    offsets.push(Buffer.byteLength(out, "latin1"));
+    out += `${i + 1} 0 obj\n${o}\nendobj\n`;
+  });
+  const xref = Buffer.byteLength(out, "latin1");
+  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n${offsets.map((o) => `${String(o).padStart(10, "0")} 00000 n \n`).join("")}`;
+  out += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return new Uint8Array(Buffer.from(out, "latin1"));
+}
+
 beforeAll(async () => {
   fin = await import("@/lib/finance/repository");
   imp = await import("@/lib/finance/import/repository");
@@ -65,6 +89,40 @@ describe("importação de extrato", () => {
     // regra aprendida aparece como sugestão
     const ruleRows = await dbModule.db.$client`select pattern, type from import_rules where user_id = ${a} order by pattern`;
     expect(ruleRows.map((r) => r.pattern)).toEqual(["DEB AUT FATUR CART", "PIX QR CODE MERCADO BOM"]);
+  }, 60_000);
+
+  it("cartão ligado ao banco: pagamento da fatura vai para ele, e o “pagamento recebido” da fatura não entra de novo", async () => {
+    const bank = await fin.createAccount(a, acc("Bradesco"));
+    await fin.createAccount(a, acc("Cartão de outro banco", "credit_card"));
+    const card = await fin.createAccount(a, { ...acc("Cartão Bradesco", "credit_card"), paymentAccountId: bank });
+
+    // extrato da conta: "PAGTO FATURA" sugere transferência para o cartão do próprio banco (há dois cartões)
+    const extrato = makePdf([
+      [[30, "Data"], [100, "Descrição"], [400, "Valor"]],
+      [[30, "13/10/2026"], [100, "PAGTO FATURA CARTAO"], [398, "-300,00"]],
+    ]);
+    const pe = await imp.buildPreview(a, bank, "extrato.pdf", extrato, "2026-10-28");
+    if ("error" in pe) throw new Error(pe.error);
+    expect(pe.looksLikeCardBill).toBe(false);
+    expect(pe.rows[0].suggestion).toMatchObject({ type: "transfer", toAccountId: card });
+    const row = { date: pe.rows[0].date, originalDescription: pe.rows[0].description, description: "Pagamento fatura", amountCents: pe.rows[0].amountCents, occurrence: 0, type: "transfer" as const, categoryId: null, toAccountId: card, remember: false };
+    expect(await imp.commitImport(a, { accountId: bank, fileName: "extrato.pdf", fileHash: "d".repeat(64), period: null, rows: [row] })).toEqual({ imported: 1, skipped: 0 });
+
+    // fatura do cartão: a compra é nova; o "PAGAMENTO RECEBIDO" é o mesmo dinheiro e vem como parecido (desmarcado)
+    const fatura = makePdf([
+      [[300, "Total da fatura"], [420, "Vencimento"]],
+      [[300, "R$ 500,00"], [420, "10/11/2026"]],
+      [[45, "Data"], [80, "Histórico de Lançamentos"], [380, "R$"]],
+      [[45, "14/10"], [80, "PAGAMENTO RECEBIDO"], [372, "300,00 -"]],
+      [[45, "15/10"], [80, "MERCADO BOM"], [372, "200,00"]],
+    ]);
+    const pf = await imp.buildPreview(a, card, "fatura.pdf", fatura, "2026-10-28");
+    if ("error" in pf) throw new Error(pf.error);
+    expect(pf.looksLikeCardBill).toBe(true);
+    const by = Object.fromEntries(pf.rows.map((r) => [r.description, r]));
+    expect(by["PAGAMENTO RECEBIDO"]).toMatchObject({ amountCents: 30_000, status: "possible_duplicate" });
+    expect(by["PAGAMENTO RECEBIDO"].suggestion).toMatchObject({ type: "transfer", toAccountId: bank }); // veio do banco que paga
+    expect(by["MERCADO BOM"]).toMatchObject({ amountCents: -20_000, status: "new" });
   }, 60_000);
 
   it("desfazer importação apaga só os lançamentos dela; manuais ficam; outra usuária não desfaz", async () => {

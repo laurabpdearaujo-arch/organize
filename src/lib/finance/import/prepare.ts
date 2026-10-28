@@ -47,7 +47,7 @@ const INVESTMENT = /\b(APLICACAO|APLIC|RESGATE|POUPANCA|INVEST\w*|CDB|TESOURO)\b
  */
 export function suggest(
   row: ParsedRow,
-  ctx: { rules: Map<string, Rule>; accountType: string; cardAccountIds: string[] },
+  ctx: { rules: Map<string, Rule>; accountType: string; cardAccountIds: string[]; linkedCardIds?: string[]; payerAccountId?: string | null },
 ): Suggestion {
   const p = patternOf(row.description);
   const rule = ctx.rules.get(p);
@@ -56,12 +56,16 @@ export function suggest(
     return { type: rule.type, categoryId: rule.type === "transfer" ? null : rule.categoryId, toAccountId: rule.type === "transfer" ? rule.toAccountId : null, source: "rule" };
   }
   if (CARD_PAYMENT.test(p) && ctx.accountType !== "credit_card" && row.amountCents < 0) {
-    return { type: "transfer", categoryId: null, toAccountId: ctx.cardAccountIds.length === 1 ? ctx.cardAccountIds[0] : null, source: "keyword" };
+    // vai para o cartão pago por esta conta; sem vínculo, para o único cartão que existir
+    const linked = ctx.linkedCardIds ?? [];
+    const to = linked.length === 1 ? linked[0] : linked.length === 0 && ctx.cardAccountIds.length === 1 ? ctx.cardAccountIds[0] : null;
+    return { type: "transfer", categoryId: null, toAccountId: to, source: "keyword" };
   }
   // Na fatura, o pagamento aparece como crédito ("PAGTO. POR DEB EM C/C", "PAGAMENTO RECEBIDO"):
   // é a transferência da conta corrente para o cartão, não uma receita.
   if (ctx.accountType === "credit_card" && row.amountCents > 0 && (CARD_PAYMENT.test(p) || /\bPAG(TO|AMENTO)?\b/.test(p))) {
-    return { type: "transfer", categoryId: null, toAccountId: null, source: "keyword" };
+    // veio da conta que paga a fatura (se o cartão estiver ligado a uma)
+    return { type: "transfer", categoryId: null, toAccountId: ctx.payerAccountId ?? null, source: "keyword" };
   }
   if (INVESTMENT.test(p)) return { type: "transfer", categoryId: null, toAccountId: null, source: "keyword" };
   return { type: signType, categoryId: null, toAccountId: null, source: "sign" };

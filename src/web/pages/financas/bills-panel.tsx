@@ -3,6 +3,7 @@ import { CalendarClock, CheckCircle2, MoreHorizontal, Plus, Repeat } from "lucid
 import { EmptyState } from "@/web/components/empty-state";
 import { Modal, inputCls, labelCls, primaryBtn, secondaryBtn } from "@/web/components/modal";
 import type { FinanceData } from "@/lib/finance/repository";
+import { accountLabel } from "@/lib/finance/constants";
 import type { BillList } from "@/lib/finance/bills-repository";
 import { billStatus, dueDateIn, type BillStatus } from "@/lib/finance/bills";
 import { centsToInput, formatMoney } from "@/lib/finance/money";
@@ -212,7 +213,7 @@ function BillDialog({ bill, data, onClose }: { bill: Bill | null; data: FinanceD
           <label htmlFor="bacc" className={labelCls}>Paga por qual conta? (opcional)</label>
           <select id="bacc" className={inputCls} value={accountId} onChange={(e) => setAccountId(e.target.value)}>
             <option value="">—</option>
-            {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            {accounts.map((a) => <option key={a.id} value={a.id}>{accountLabel(a)}</option>)}
           </select>
         </div>
         <div>

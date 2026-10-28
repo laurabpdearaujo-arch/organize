@@ -191,7 +191,7 @@ describe("ações de cada módulo pela API", () => {
   }, 60_000);
 
   it("finanças: conta, lançamento e resumo do mês", async () => {
-    expect(await A.action("financas", "saveAccount", { id: null, input: { name: "Banco", type: "checking", currency: "BRL", initialBalance: "1.000,00", color: "blue", closingDay: null, dueDay: null } })).toEqual({ ok: true });
+    expect(await A.action("financas", "saveAccount", { id: null, input: { name: "Banco", type: "checking", currency: "BRL", initialBalance: "1.000,00", color: "blue", closingDay: null, dueDay: null } })).toMatchObject({ ok: true, id: expect.any(String) });
     const fin = await A.page("financas");
     const banco = fin.data.accounts.find((x: { name: string }) => x.name === "Banco");
     expect(banco.balanceCents).toBe(100_000);
@@ -202,6 +202,15 @@ describe("ações de cada módulo pela API", () => {
     const after = await A.page("financas");
     expect(after.data.accounts.find((x: { id: string }) => x.id === banco.id).balanceCents).toBe(100_000 - 25_050);
     expect(after.data.transactions.find((t: { description: string }) => t.description === "Mercado")).toMatchObject({ amountCents: 25_050, type: "expense" });
+
+    // cartão nasce dentro do banco; ninguém liga cartão à conta de outra pessoa, nem a um cartão
+    const card = { name: "Cartão Banco", type: "credit_card", currency: "USD", initialBalance: "-50,00", color: "blue", closingDay: null, dueDay: 10, paymentAccountId: banco.id };
+    expect((await B.action("financas", "saveAccount", { id: null, input: card })).ok).toBe(false);
+    const created = await A.action<{ ok: boolean; id?: string }>("financas", "saveAccount", { id: null, input: card });
+    expect(created.ok).toBe(true);
+    expect((await A.action("financas", "saveAccount", { id: null, input: { ...card, paymentAccountId: created.id } })).ok).toBe(false);
+    const saved = (await A.page("financas")).data.accounts.find((x: { id: string }) => x.id === created.id);
+    expect(saved).toMatchObject({ paymentAccountId: banco.id, currency: "BRL", dueDay: 10, closingDay: null, balanceCents: -5_000 }); // moeda vem do banco
   }, 60_000);
 
   it("estudos: importar PDF de conteúdo pela API, gravar o plano e registrar estudo", async () => {

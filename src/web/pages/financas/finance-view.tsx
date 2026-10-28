@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link } from "react-router";
+import { useRef, useState } from "react";
+import { Link, useNavigate } from "react-router";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { FinanceData } from "@/lib/finance/repository";
 import type { listImports } from "@/lib/finance/import/repository";
@@ -70,6 +70,16 @@ export function FinanceView({
   }
 
   const monthHref = (m: string) => `/financas?mes=${m}&aba=${tab}`;
+  const navigate = useNavigate();
+  // Ir direto a um mês/ano (sem precisar clicar na seta várias vezes). As listas guardam a escolha
+  // nelas mesmas e a navegação lê as duas: trocar o ano e logo depois o mês (antes de a página
+  // carregar) usa o ano recém-escolhido. Quando o mês carrega, o `key` as recria com ele.
+  const [year, mon] = month.split("-").map(Number);
+  const thisYear = Number(currentMonth.slice(0, 4));
+  const years = Array.from({ length: Math.max(thisYear + 1, year) - Math.min(thisYear - 5, year) + 1 }, (_, i) => Math.min(thisYear - 5, year) + i);
+  const monthSel = useRef<HTMLSelectElement>(null);
+  const yearSel = useRef<HTMLSelectElement>(null);
+  const goToPicked = () => navigate(monthHref(`${yearSel.current!.value}-${monthSel.current!.value.padStart(2, "0")}`));
 
   return (
     <>
@@ -94,7 +104,12 @@ export function FinanceView({
               <Link to={monthHref(addMonths(month, -1))} aria-label="Mês anterior" className="rounded-lg p-1.5 hover:bg-muted">
                 <ChevronLeft className="size-4" />
               </Link>
-              <span className="min-w-36 text-center font-medium capitalize">{monthLabel(month)}</span>
+              <select key={`m-${month}`} ref={monthSel} aria-label="Mês" defaultValue={mon} onChange={goToPicked} className="rounded-lg bg-transparent py-1 font-medium capitalize hover:bg-muted">
+                {MONTHS.map((name, i) => <option key={name} value={i + 1}>{name}</option>)}
+              </select>
+              <select key={`y-${month}`} ref={yearSel} aria-label="Ano" defaultValue={year} onChange={goToPicked} className="rounded-lg bg-transparent py-1 font-medium hover:bg-muted">
+                {years.map((y) => <option key={y} value={y}>{y}</option>)}
+              </select>
               <Link to={monthHref(addMonths(month, 1))} aria-label="Próximo mês" className="rounded-lg p-1.5 hover:bg-muted">
                 <ChevronRight className="size-4" />
               </Link>

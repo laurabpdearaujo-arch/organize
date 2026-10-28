@@ -2,7 +2,7 @@ import { useState, useTransition } from "react";
 import { Trash2 } from "lucide-react";
 import { Modal, inputCls, labelCls, primaryBtn, secondaryBtn } from "@/web/components/modal";
 import type { FinanceData } from "@/lib/finance/repository";
-import { PAYMENT_METHOD_LABEL, type PaymentMethod, type TxType } from "@/lib/finance/constants";
+import { accountLabel, PAYMENT_METHOD_LABEL, type PaymentMethod, type TxType } from "@/lib/finance/constants";
 import { centsToInput, CURRENCY_SYMBOL } from "@/lib/finance/money";
 import { deleteTransaction, saveTransaction } from "./actions";
 
@@ -112,7 +112,7 @@ export function TxDialog({ data, tx, defaultDate, onClose }: { data: FinanceData
           <div>
             <label htmlFor="acc" className={labelCls}>{type === "transfer" ? "De (origem)" : "Conta"}</label>
             <select id="acc" className={inputCls} value={accountId} onChange={(e) => changeAccount(e.target.value)} required>
-              {active.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              {active.map((a) => <option key={a.id} value={a.id}>{accountLabel(a)}</option>)}
             </select>
           </div>
           {type === "transfer" ? (
@@ -120,7 +120,7 @@ export function TxDialog({ data, tx, defaultDate, onClose }: { data: FinanceData
               <label htmlFor="toacc" className={labelCls}>Para (destino)</label>
               <select id="toacc" className={inputCls} value={toAccountId} onChange={(e) => setToAccountId(e.target.value)} required>
                 <option value="">Escolha…</option>
-                {active.filter((a) => a.id !== accountId && a.currency === account?.currency).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                {active.filter((a) => a.id !== accountId && a.currency === account?.currency).map((a) => <option key={a.id} value={a.id}>{accountLabel(a)}</option>)}
               </select>
             </div>
           ) : (

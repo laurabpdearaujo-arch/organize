@@ -192,6 +192,8 @@ export const accounts = pgTable(
     /** Cartão: dia do fechamento e do vencimento da fatura. */
     closingDay: smallint("closing_day"),
     dueDay: smallint("due_day"),
+    /** Cartão: conta que paga a fatura (na tela, o cartão aparece dentro dela). */
+    paymentAccountId: uuid("payment_account_id").references((): AnyPgColumn => accounts.id, { onDelete: "set null" }),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     ...timestamps,
   },

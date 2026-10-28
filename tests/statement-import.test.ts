@@ -3,7 +3,7 @@
  * cabeçalhos) de Bradesco, Itaú e Sicoob, observada em versões mascaradas — com valores e nomes inventados.
  */
 import { describe, expect, it } from "vitest";
-import { parseStatement, type PdfLine } from "@/lib/finance/import/statement";
+import { looksLikeCardBill, parseStatement, type PdfLine } from "@/lib/finance/import/statement";
 
 /** Monta uma linha: [x, texto] → largura aproximada pelo nº de caracteres. */
 function L(page: number, y: number, ...items: [number, string][]): PdfLine {
@@ -192,6 +192,18 @@ describe("Fatura de cartão (estrutura da fatura Bradesco): modo cartão", () =>
   it("confere com o Resumo da fatura e ignora painel lateral, portadores e totais", () => {
     expect(r.reconciliation).toMatchObject({ status: "ok", totals: "ok" });
     expect(r.warnings).toEqual([]);
+  });
+});
+
+describe("fatura ou extrato? (para avisar quando a pessoa escolheu o tipo errado)", () => {
+  it("fatura tem “Resumo da fatura”, “Total da fatura” ou “Pagamento mínimo”", () => {
+    expect(looksLikeCardBill([L(1, 749, [421, "Total da"], [450, "fatura"]), L(1, 700, [40, "MERCADO"])])).toBe(true);
+    expect(looksLikeCardBill([L(2, 500, [40, "Pagamento mínimo"], [200, "R$ 129,00"])])).toBe(true);
+  });
+
+  it("extrato com “PAGTO FATURA”, vencimento ou limite não é fatura", () => {
+    const extrato = [L(1, 700, [30, "13/10/2026"], [100, "PAGTO FATURA CARTAO"], R(430, "-213,98")), L(1, 680, [30, "Limite da conta"], [200, "Vencimento 10/11"])];
+    expect(looksLikeCardBill(extrato)).toBe(false);
   });
 });
 

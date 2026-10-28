@@ -3,7 +3,7 @@ import { and, desc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { accounts, categories, importBatches, importRules, transactions } from "@/db/schema";
 import { pdfToLines } from "./pdf-lines";
-import { parseStatement, type Reconciliation } from "./statement";
+import { looksLikeCardBill, parseStatement, type Reconciliation } from "./statement";
 import { findReversals, fingerprintSource, occurrences, patternOf, suggest, type Rule, type Suggestion, type TxKind } from "./prepare";
 
 /*
@@ -35,6 +35,8 @@ export type Preview = {
   reconciliation: Reconciliation;
   warnings: string[];
   alreadyImportedAt: string | null;
+  /** O PDF tem cara de fatura de cartão (a tela avisa se não bater com o que a pessoa escolheu). */
+  looksLikeCardBill: boolean;
   rows: PreviewRow[];
 };
 
@@ -55,8 +57,10 @@ export async function buildPreview(
 
   const fileHash = sha256(bytes);
   let parsed;
+  let billLike = false;
   try {
     const { lines } = await pdfToLines(bytes);
+    billLike = looksLikeCardBill(lines);
     // Conta de cartão → o PDF é uma fatura (compra sem sinal = saída; crédito com "-").
     parsed = parseStatement(lines, { fallbackYear: Number(today.slice(0, 4)), mode: acc.type === "credit_card" ? "card" : "bank" });
   } catch {
@@ -91,7 +95,7 @@ export async function buildPreview(
       ),
     db.select().from(importRules).where(eq(importRules.userId, userId)),
     db
-      .select({ id: accounts.id })
+      .select({ id: accounts.id, paymentAccountId: accounts.paymentAccountId })
       .from(accounts)
       .where(and(eq(accounts.userId, userId), eq(accounts.type, "credit_card"), eq(accounts.currency, acc.currency), isNull(accounts.archivedAt))),
     db
@@ -104,7 +108,13 @@ export async function buildPreview(
 
   const known = new Set(existingFp.map((r) => r.fingerprint));
   const rules = new Map<string, Rule>(ruleRows.map((r) => [r.pattern, r]));
-  const ctx = { rules, accountType: acc.type, cardAccountIds: cards.filter((c) => c.id !== accountId).map((c) => c.id) };
+  const ctx = {
+    rules,
+    accountType: acc.type,
+    cardAccountIds: cards.filter((c) => c.id !== accountId).map((c) => c.id),
+    linkedCardIds: cards.filter((c) => c.paymentAccountId === accountId).map((c) => c.id),
+    payerAccountId: acc.type === "credit_card" ? acc.paymentAccountId : null,
+  };
 
   // Lançamentos parecidos já existentes (ex.: lançados à mão): mesmo valor/direção, até 3 dias de diferença.
   const candidates = nearby
@@ -155,6 +165,7 @@ export async function buildPreview(
     reconciliation: parsed.reconciliation,
     warnings: parsed.warnings,
     alreadyImportedAt: prior[0]?.createdAt.toISOString() ?? null,
+    looksLikeCardBill: billLike,
     rows: previewRows,
   };
 }

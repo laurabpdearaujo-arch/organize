@@ -48,10 +48,22 @@ describe("sugestões", () => {
     expect(suggest(row("2026-10-13", "PAGAMENTO FATURA CARTAO", -100), { ...ctx, cardAccountIds: ["a", "b"] }).toAccountId).toBeNull();
   });
 
+  it("pagamento de fatura vai para o cartão pago por esta conta, mesmo havendo outros cartões", () => {
+    const fatura = row("2026-10-13", "PAGAMENTO FATURA CARTAO", -100);
+    expect(suggest(fatura, { ...ctx, cardAccountIds: ["a", "b"], linkedCardIds: ["b"] }).toAccountId).toBe("b");
+    // dois cartões pagos pela mesma conta: a pessoa escolhe
+    expect(suggest(fatura, { ...ctx, cardAccountIds: ["a", "b"], linkedCardIds: ["a", "b"] }).toAccountId).toBeNull();
+    // nenhum cartão ligado a esta conta e um único cartão no total: vai para ele (como antes do vínculo)
+    expect(suggest(fatura, { ...ctx, cardAccountIds: ["a"], linkedCardIds: [] }).toAccountId).toBe("a");
+  });
+
   it("na fatura do cartão, o pagamento (crédito) vira transferência", () => {
     const cardCtx = { ...ctx, accountType: "credit_card" };
     expect(suggest(row("2026-05-11", "PAGTO. POR DEB EM C/C", 150000), cardCtx).type).toBe("transfer");
     expect(suggest(row("2026-05-12", "MERCADO BOM", -3000), cardCtx).type).toBe("expense");
+    // cartão ligado a uma conta: o pagamento veio dela
+    expect(suggest(row("2026-05-11", "PAGTO. POR DEB EM C/C", 150000), { ...cardCtx, payerAccountId: "bradesco" }).toAccountId).toBe("bradesco");
+    expect(suggest(row("2026-05-11", "PAGTO. POR DEB EM C/C", 150000), cardCtx).toAccountId).toBeNull();
   });
 
   it("sem regra: pelo sinal", () => {

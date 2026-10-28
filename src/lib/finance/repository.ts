@@ -106,7 +106,13 @@ type AccountValues = {
   color: string;
   closingDay: number | null;
   dueDay: number | null;
+  paymentAccountId?: string | null;
 };
+
+export async function getAccount(userId: string, id: string) {
+  const [acc] = await db.select().from(accounts).where(and(eq(accounts.id, id), eq(accounts.userId, userId)));
+  return acc ?? null;
+}
 
 export async function createAccount(userId: string, v: AccountValues) {
   const [row] = await db.insert(accounts).values({ ...v, userId }).returning({ id: accounts.id });

@@ -31,28 +31,39 @@ const firstIssue = (e: z.ZodError) => ({ ok: false as const, error: e.issues[0]?
 
 // ---------- contas ----------
 
-export async function saveAccount(payload: unknown) {
-  return run(async () => {
+/** Ao criar, devolve também o id (a importação cria o cartão e segue com ele). */
+export async function saveAccount(payload: unknown): Promise<ActionResult & { id?: string }> {
+  let createdId: string | undefined;
+  const r = await run(async () => {
     const user = await getCurrentUser();
     const req = z.object({ id: id.nullable(), input: z.unknown() }).safeParse(payload);
     if (!req.success) return BAD;
     const v = accountInputSchema.safeParse(req.data.input);
     if (!v.success) return firstIssue(v.error);
     const { initialBalance, ...rest } = v.data;
+    const card = rest.type === "credit_card";
     const values = {
       ...rest,
       initialBalanceCents: initialBalance,
-      closingDay: rest.type === "credit_card" ? rest.closingDay : null,
-      dueDay: rest.type === "credit_card" ? rest.dueDay : null,
+      closingDay: card ? rest.closingDay : null,
+      dueDay: card ? rest.dueDay : null,
+      paymentAccountId: card ? rest.paymentAccountId : null,
     };
+    if (values.paymentAccountId) {
+      // o cartão é pago por uma conta de banco da própria pessoa, na mesma moeda
+      const payer = await repo.getAccount(user.id, values.paymentAccountId);
+      if (!payer || payer.id === req.data.id || payer.type === "credit_card" || payer.type === "cash") return { ok: false, error: "Escolha a conta de banco que paga a fatura." };
+      values.currency = payer.currency;
+    }
     if (!req.data.id) {
-      await repo.createAccount(user.id, values);
+      createdId = await repo.createAccount(user.id, values);
       return ok();
     }
     const r = await repo.updateAccount(user.id, req.data.id, values);
     if (r === "currency_locked") return { ok: false, error: "Não dá para mudar a moeda de uma conta que já tem lançamentos." };
     return r === "ok" ? ok() : NOT_FOUND;
   });
+  return r.ok && createdId ? { ...r, id: createdId } : r;
 }
 
 export async function adjustAccountBalance(payload: unknown) {

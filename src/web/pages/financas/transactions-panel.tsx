@@ -4,7 +4,7 @@ import { EmptyState } from "@/web/components/empty-state";
 import { inputCls, primaryBtn } from "@/web/components/modal";
 import { colorHex } from "@/lib/calendar/colors";
 import { dropParam } from "@/web/lib/drop-param";
-import { PAYMENT_METHOD_LABEL } from "@/lib/finance/constants";
+import { accountLabel, PAYMENT_METHOD_LABEL } from "@/lib/finance/constants";
 import type { FinanceData } from "@/lib/finance/repository";
 import { formatMoney } from "@/lib/finance/money";
 import { monthOf } from "@/lib/finance/summary";
@@ -57,7 +57,7 @@ export function TransactionsPanel({ data, month, today, openNew = false }: { dat
         </select>
         <select className={`${inputCls} w-auto`} value={accountFilter} onChange={(e) => setAccountFilter(e.target.value)} aria-label="Conta">
           <option value="">Todas as contas</option>
-          {data.accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          {data.accounts.map((a) => <option key={a.id} value={a.id}>{accountLabel(a)}</option>)}
         </select>
         <select className={`${inputCls} w-auto`} value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} aria-label="Categoria">
           <option value="">Todas as categorias</option>

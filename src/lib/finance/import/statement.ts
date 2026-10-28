@@ -251,6 +251,15 @@ function maxFullDate(lines: PdfLine[]): string | null {
   return max;
 }
 
+// Só aparecem em fatura de cartão. "Fatura" sozinha não serve: o extrato tem "PAGTO FATURA";
+// "vencimento" e "limite" também aparecem em extratos.
+const CARD_BILL_RE = /resumo\s+da\s+fatura|total\s+da\s+fatura|pagamento\s+m[íi]nimo/i;
+
+/** O PDF tem cara de fatura de cartão (para avisar quando a pessoa escolheu "extrato", e vice-versa). */
+export function looksLikeCardBill(pages: PdfLine[]) {
+  return pages.some((l) => CARD_BILL_RE.test(l.items.map((i) => i.s).join(" ")));
+}
+
 /** "Resumo da fatura": total de compras/débitos e de créditos/pagamentos, onde houver no PDF. */
 function cardSummary(lines: PdfLine[]) {
   const lastMoney = (l: PdfLine) => {
