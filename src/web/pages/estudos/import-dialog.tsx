@@ -3,7 +3,7 @@ import { apiFetch } from "@/web/lib/api";
 import { ChevronRight, FileUp } from "lucide-react";
 import { Modal, inputCls, labelCls, primaryBtn, secondaryBtn } from "@/web/components/modal";
 import { EVENT_COLORS, type EventColor } from "@/lib/calendar/colors";
-import { countLeaves, type OutlineNode, type OutlinePlan } from "@/lib/studies/outline";
+import { countLeaves, parseOutline, type OutlineNode, type OutlinePlan } from "@/lib/studies/outline";
 import { normKey } from "@/lib/studies/merge";
 import { importStudyPlans } from "./actions";
 
@@ -12,7 +12,14 @@ const COLORS = Object.keys(EVENT_COLORS) as EventColor[];
 /** targetPlanId preenchido = atualizar esse plano (mantém status, datas e registros). */
 type Draft = { include: boolean; name: string; color: EventColor; plan: OutlinePlan; targetPlanId: string };
 
-/** Envia o PDF, mostra como ficou a divisão e cria os planos escolhidos. */
+const PASTE_EXAMPLE = `1. Matemática
+1.1 Matemática Básica
+1.1.1 Potenciação
+1.1.2 Logaritmo
+1.2 Cálculo
+1.2.1 Limite`;
+
+/** Envia o PDF (ou lê a lista colada), mostra como ficou a divisão e cria os planos escolhidos. */
 export function ImportDialog({
   existingPlans,
   onClose,
@@ -22,7 +29,9 @@ export function ImportDialog({
   onClose: () => void;
   onImported: (planId: string, message: string) => void;
 }) {
+  const [mode, setMode] = useState<"pdf" | "paste">("pdf");
   const [file, setFile] = useState<File | null>(null);
+  const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fileName, setFileName] = useState("");
@@ -30,11 +39,34 @@ export function ImportDialog({
   const [warnings, setWarnings] = useState<string[]>([]);
   const [pending, startTransition] = useTransition();
 
+  function showDrafts(name: string, plans: OutlinePlan[], warns: string[]) {
+    setFileName(name);
+    setWarnings(warns);
+    setDrafts(
+      plans.map((p, i) => ({
+        include: true,
+        name: p.name,
+        color: COLORS[i % COLORS.length],
+        plan: p,
+        // plano com o mesmo nome já existe → por padrão, atualizar (sem perder progresso)
+        targetPlanId: existingPlans.find((e) => normKey(e.name) === normKey(p.name))?.id ?? "",
+      })),
+    );
+  }
+
   async function read(e: React.FormEvent) {
     e.preventDefault();
+    setError(null);
+    if (mode === "paste") {
+      // mesmo leitor do PDF, rodando aqui mesmo (a lista não precisa ir ao servidor para ser lida)
+      const { plans, warnings: warns } = parseOutline(text.split(/\r?\n/), "Plano de estudos");
+      const usable = plans.filter((p) => countLeaves(p.nodes).leaves > 0);
+      if (!usable.length) setError("Não encontrei temas e conteúdos na lista. Coloque um item por linha, como no exemplo.");
+      else showDrafts("", usable, warns);
+      return;
+    }
     if (!file) return;
     setLoading(true);
-    setError(null);
     try {
       const fd = new FormData();
       fd.set("file", file);
@@ -44,18 +76,7 @@ export function ImportDialog({
         setError(body.error ?? "Não foi possível ler o arquivo.");
         return;
       }
-      setFileName(body.fileName);
-      setWarnings(body.warnings ?? []);
-      setDrafts(
-        (body.plans as OutlinePlan[]).map((p, i) => ({
-          include: true,
-          name: p.name,
-          color: COLORS[i % COLORS.length],
-          plan: p,
-          // plano com o mesmo nome já existe → por padrão, atualizar (sem perder progresso)
-          targetPlanId: existingPlans.find((e) => normKey(e.name) === normKey(p.name))?.id ?? "",
-        })),
-      );
+      showDrafts(body.fileName, body.plans, body.warnings ?? []);
     } catch {
       setError("Falha de conexão ao enviar o arquivo.");
     } finally {
@@ -93,16 +114,50 @@ export function ImportDialog({
     <Modal title="Importar conteúdo programático" onClose={onClose} size="lg">
       {!drafts ? (
         <form onSubmit={read} className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Envie o PDF com o conteúdo. Cada “PARTE” vira um plano; os temas e conteúdos são separados para você marcar o que já estudou
-            e agendar datas. Nada é gravado antes de você conferir. O arquivo não fica guardado.
-          </p>
-          <input type="file" accept="application/pdf,.pdf" className={`${inputCls} file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-2 file:py-1 file:text-sm`} onChange={(e) => setFile(e.target.files?.[0] ?? null)} required aria-label="Arquivo PDF" />
+          <div className="flex gap-1 rounded-lg bg-muted p-1 text-sm" role="tablist">
+            {(
+              [
+                ["pdf", "Enviar PDF"],
+                ["paste", "Colar lista"],
+              ] as const
+            ).map(([m, label]) => (
+              <button
+                key={m}
+                type="button"
+                role="tab"
+                aria-selected={mode === m}
+                onClick={() => {
+                  setMode(m);
+                  setError(null);
+                }}
+                className={`flex-1 rounded-md px-2 py-1 ${mode === m ? "bg-card font-medium shadow-sm" : "text-muted-foreground"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {mode === "pdf" ? (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Envie o PDF com o conteúdo. Os temas e conteúdos são separados para você marcar o que já estudou e agendar datas. Nada é
+                gravado antes de você conferir. O arquivo não fica guardado.
+              </p>
+              <input type="file" accept="application/pdf,.pdf" className={`${inputCls} file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-2 file:py-1 file:text-sm`} onChange={(e) => setFile(e.target.files?.[0] ?? null)} required aria-label="Arquivo PDF" />
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Cole a lista de conteúdos, um item por linha. Os números mostram o nível: “1.” é a matéria, “1.1” o tema e “1.1.1” o conteúdo.
+                Também vale um tema numa linha sem número, com os conteúdos numerados (“1.”, “2.”…) embaixo. Nada é gravado antes de você conferir.
+              </p>
+              <textarea rows={12} className={`${inputCls} font-mono text-xs`} value={text} onChange={(e) => setText(e.target.value)} placeholder={PASTE_EXAMPLE} required aria-label="Lista de conteúdos" />
+            </>
+          )}
           {error && <p role="alert" className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
           <div className="flex justify-end gap-2">
             <button type="button" onClick={onClose} className={secondaryBtn}>Cancelar</button>
-            <button type="submit" disabled={!file || loading} className={`flex items-center gap-1.5 ${primaryBtn}`}>
-              <FileUp className="size-4" /> {loading ? "Lendo…" : "Ler PDF"}
+            <button type="submit" disabled={mode === "pdf" ? !file || loading : !text.trim()} className={`flex items-center gap-1.5 ${primaryBtn}`}>
+              <FileUp className="size-4" /> {mode === "paste" ? "Ler lista" : loading ? "Lendo…" : "Ler PDF"}
             </button>
           </div>
         </form>

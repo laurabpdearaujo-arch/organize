@@ -184,7 +184,7 @@ export async function importPlans(userId: string, fileName: string, plans: { nam
   return db.transaction(async (tx) => {
     const created: string[] = [];
     for (const p of plans) {
-      const [plan] = await tx.insert(studyPlans).values({ userId, name: p.name, color: p.color, sourceFileName: fileName }).returning({ id: studyPlans.id });
+      const [plan] = await tx.insert(studyPlans).values({ userId, name: p.name, color: p.color, sourceFileName: fileName || null }).returning({ id: studyPlans.id });
       created.push(plan.id);
       // insere nível por nível (o pai precisa existir antes dos filhos)
       let level: { parentId: string | null; nodes: OutlineNode[] }[] = [{ parentId: null, nodes: p.nodes }];

@@ -55,7 +55,14 @@ export function parentByCode(items: PlaceItem[], themeId: string, code: string):
   if (!s.length) return undefined;
   if (s.length === 1) return themeId;
   const want = s.slice(0, -1).join(".");
-  return descendants(items, themeId).find(({ item, depth }) => depth > 0 && item.code && normCode(item.code) === want)?.item.id;
+  const all = descendants(items, themeId);
+  const hit = all.find(({ item, depth }) => depth > 0 && item.code && normCode(item.code) === want);
+  if (hit) return hit.item.id;
+  // Ementa numerada (tema "1.1" com conteúdos "1.1.1", "1.1.2"…): "1.1.17" entra direto no tema
+  const theme = all[0]?.item;
+  const nested =
+    theme?.code && normCode(theme.code) === want && childrenOf(items, themeId).some((c) => c.code && normCode(c.code).startsWith(`${want}.`));
+  return nested ? themeId : undefined;
 }
 
 /** Posição (índice entre os irmãos já ordenados): sem código, no fim; com código, antes do primeiro irmão de código maior. */

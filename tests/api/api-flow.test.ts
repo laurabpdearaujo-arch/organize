@@ -226,6 +226,22 @@ describe("ações de cada módulo pela API", () => {
     expect(after.logs).toHaveLength(1);
   }, 60_000);
 
+  it("estudos: ementa numerada (1. / 1.1 / • 1.1.1) vira um plano por matéria, com temas e conteúdos", async () => {
+    const pdf = makePdf(["1. Matemática", "1.1 Matemática Básica", "• 1.1.1 Potenciação", "• 1.1.2 Logaritmo", "2. Estatística", "2.1 Números Índices", "• 2.1.1 Números Índices"]);
+    const outline = await (await upload(A, "/api/estudos/importar", pdf)).json();
+    expect(outline.plans.map((p: { name: string }) => p.name)).toEqual(["Matemática", "Estatística"]);
+    const res = await A.action<{ ok: boolean; planIds?: string[] }>("estudos", "importStudyPlans", {
+      fileName: "ementa.pdf",
+      plans: outline.plans.map((p: { name: string; nodes: unknown }) => ({ name: p.name, color: "violet", nodes: p.nodes, targetPlanId: null })),
+    });
+    expect(res.ok).toBe(true);
+    type Item = { id: string; parentId: string | null; code: string | null; isGroup: boolean };
+    const mat = (await A.page("estudos")).plans.find((p: { id: string }) => p.id === res.planIds![0]);
+    const tema = mat.items.find((i: Item) => i.code === "1.1");
+    expect(tema).toMatchObject({ parentId: null, isGroup: true });
+    expect(mat.items.filter((i: Item) => i.parentId === tema.id).map((i: Item) => i.code).sort()).toEqual(["1.1.1", "1.1.2"]);
+  }, 60_000);
+
   it("importação de extrato: lê o PDF no servidor e recusa arquivo que não é PDF", async () => {
     const fin = await A.page("financas");
     const banco = fin.data.accounts.find((x: { name: string }) => x.name === "Banco");
@@ -264,6 +280,6 @@ describe("isolamento entre usuárias pela API", () => {
     expect((await A.page("tarefas")).data.tasks.some((t: { id: string }) => t.id === taskA.id)).toBe(true);
     expect((await A.page("leituras")).data.books.some((x: { id: string }) => x.id === bookA.id)).toBe(true);
     expect((await A.page("habitos")).habits).toHaveLength(1);
-    expect((await A.page("estudos")).plans).toHaveLength(1);
+    expect((await A.page("estudos")).plans.some((p: { id: string }) => p.id === planA.id)).toBe(true);
   }, 60_000);
 });

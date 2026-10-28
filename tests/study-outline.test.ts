@@ -125,6 +125,59 @@ describe("cursos: módulos/seções → aulas", () => {
   });
 });
 
+describe("ementa numerada em níveis (trechos reais do PDF “anpec ementa”)", () => {
+  const EMENTA = [
+    "Conteúdo programático do curso", // introdução antes do primeiro código: ignorada
+    "1. Matemática",
+    "1.1 Matemática Básica",
+    "• 1.1.1 Potenciação",
+    "• 1.1.2 Logaritmo",
+    "1.2 Ferramental de Cálculo",
+    "• 1.2.1 Introdução à Derivada",
+    "2. Estatística",
+    "2.1 Números Índices",
+    "• 2.1.1 Números Índices",
+    "• 2.1.2 Propriedades dos Números Índices",
+  ];
+  const r = parseOutline(EMENTA, "anpec ementa");
+
+  it("cada item do 1º nível vira um plano com o nome da matéria", () => {
+    expect(r.plans.map((p) => p.name)).toEqual(["Matemática", "Estatística"]);
+    expect(r.warnings).toEqual([]);
+  });
+
+  it("1.1 é tema e 1.1.1 é conteúdo dentro dele (com ou sem “•”)", () => {
+    const mat = r.plans[0];
+    expect(mat.nodes.map((n) => `${n.code} ${n.title}`)).toEqual(["1.1 Matemática Básica", "1.2 Ferramental de Cálculo"]);
+    expect(mat.nodes[0].children.map((c) => `${c.code} ${c.title}`)).toEqual(["1.1.1 Potenciação", "1.1.2 Logaritmo"]);
+    expect(countLeaves(mat.nodes).leaves).toBe(3);
+    expect(r.plans[1].nodes[0].children.map((c) => c.title)).toEqual(["Números Índices", "Propriedades dos Números Índices"]);
+  });
+
+  it("linha sem código depois do conteúdo aparece como não reconhecida", () => {
+    const x = parseOutline([...EMENTA, "Para mais informações, visite nosso site"]);
+    expect(x.warnings).toHaveLength(1);
+    expect(countLeaves(x.plans[1].nodes).leaves).toBe(2);
+  });
+
+  it("código sem o pai no PDF fica no nível de cima mais próximo", () => {
+    const x = parseOutline(["1. A", "1.1 B", "1.1.1 C", "1.2.1 D"]);
+    expect(x.plans[0].nodes.map((n) => n.code)).toEqual(["1.1", "1.2.1"]);
+  });
+
+  it("só dois níveis: o documento é um plano, 1. é tema e 1.1 é conteúdo", () => {
+    const x = parseOutline(["1. Introdução", "1.1 Conceitos", "1.2 História", "2. Métodos", "2.1 Amostragem"], "Meu curso");
+    expect(x.plans.map((p) => p.name)).toEqual(["Meu curso"]);
+    expect(x.plans[0].nodes.map((n) => n.children.length)).toEqual([2, 1]);
+  });
+
+  it("com PARTE, as partes continuam sendo os planos", () => {
+    const x = parseOutline(["PARTE I — ANPEC", ...EMENTA.slice(1)]);
+    expect(x.plans.map((p) => p.name)).toEqual(["ANPEC"]);
+    expect(x.plans[0].nodes.map((n) => n.title)).toEqual(["Matemática", "Estatística"]);
+  });
+});
+
 describe("sem PARTE", () => {
   it("o documento inteiro é um plano", () => {
     const r = parseOutline(["Módulo 1 — Básico", "1. Aula A — 10:00", "2. Aula B"], "Meu curso");

@@ -32,6 +32,13 @@ describe("onde entra um conteúdo novo", () => {
     expect(parentByCode(items, "micro", "  ")).toBeUndefined();
   });
 
+  it("ementa numerada: tema 1.1 com conteúdos 1.1.x recebe o 1.1.17 direto", () => {
+    const ementa = [it_("basica", null, 0, "1.1"), it_("pot", "basica", 0, "1.1.1"), it_("log", "basica", 1, "1.1.2"), it_("vazio", null, 1, "1.2")];
+    expect(parentByCode(ementa, "basica", "1.1.17")).toBe("basica");
+    expect(parentByCode(ementa, "basica", "1.1.2.1")).toBe("log");
+    expect(parentByCode(ementa, "vazio", "1.2.1")).toBeUndefined(); // tema sem conteúdos numerados: a pessoa escolhe
+  });
+
   it("coloca pela ordem do código; sem código, no fim", () => {
     const sib = childrenOf(items, "merc");
     expect(insertIndex(sib, "3.2")).toBe(1); // entre 3.1 e 3.3

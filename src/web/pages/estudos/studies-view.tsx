@@ -5,7 +5,7 @@ import { Modal, inputCls, labelCls, primaryBtn, secondaryBtn } from "@/web/compo
 import { EVENT_COLORS, colorHex, type EventColor } from "@/lib/calendar/colors";
 import type { PlanList } from "@/lib/studies/repository";
 import { buildTree, isGroup, leavesOf, progress, stats, STATUS_LABEL, type StudyStatus, type TreeNode } from "@/lib/studies/progress";
-import { archiveStudyPlan, deleteStudyPlan, setStudyStatusMany, updateStudyItem, updateStudyPlan } from "./actions";
+import { archiveStudyPlan, deleteStudyPlan, importStudyPlans, setStudyStatusMany, updateStudyItem, updateStudyPlan } from "./actions";
 import { AddItemDialog } from "./add-item-dialog";
 import { ImportDialog } from "./import-dialog";
 import { ItemDialog, logTotals, minutesText } from "./item-dialog";
@@ -33,6 +33,7 @@ export function StudiesView({ plans, today, initialPlanId }: { plans: PlanList; 
     (initialPlanId && plans.some((p) => p.id === initialPlanId) ? initialPlanId : null) ?? active[0]?.id ?? null,
   );
   const [importing, setImporting] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const selected = plans.find((p) => p.id === selectedId) ?? null;
 
@@ -47,9 +48,14 @@ export function StudiesView({ plans, today, initialPlanId }: { plans: PlanList; 
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">Marque o que já estudou e agende datas: os conteúdos com data aparecem no calendário.</p>
-        <button type="button" onClick={() => setImporting(true)} className={`flex items-center gap-1.5 ${primaryBtn}`}>
-          <FileUp className="size-4" /> Importar PDF de conteúdo
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => setCreating(true)} className={`flex items-center gap-1.5 ${secondaryBtn}`}>
+            <Plus className="size-4" /> Novo plano
+          </button>
+          <button type="button" onClick={() => setImporting(true)} className={`flex items-center gap-1.5 ${primaryBtn}`}>
+            <FileUp className="size-4" /> Importar conteúdo
+          </button>
+        </div>
       </div>
 
       {notice && (
@@ -60,7 +66,7 @@ export function StudiesView({ plans, today, initialPlanId }: { plans: PlanList; 
       )}
 
       {active.length === 0 ? (
-        <EmptyState icon={GraduationCap} title="Nenhum plano de estudo ainda" description="Importe o PDF com o conteúdo programático: cada parte vira um plano, dividido em temas e conteúdos." />
+        <EmptyState icon={GraduationCap} title="Nenhum plano de estudo ainda" description="Importe o conteúdo programático (PDF ou lista colada) ou crie um plano do zero com “Novo plano”." />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {active.map((p) => {
@@ -104,6 +110,18 @@ export function StudiesView({ plans, today, initialPlanId }: { plans: PlanList; 
             ))}
           </ul>
         </details>
+      )}
+
+      {creating && (
+        <PlanDialog
+          plan={null}
+          onClose={() => setCreating(false)}
+          onCreated={(id) => {
+            setCreating(false);
+            setNotice("Plano criado. Use “+ Adicionar” para criar os temas e conteúdos.");
+            select(id);
+          }}
+        />
       )}
 
       {importing && (
@@ -184,7 +202,7 @@ function PlanView({ plan, today }: { plan: Plan; today: string }) {
               <button type="button" onClick={() => toggle(n.id)} className="flex min-w-0 flex-1 items-center gap-1.5 text-left" aria-expanded={expanded}>
                 {expanded ? <ChevronDown className="size-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="size-4 shrink-0 text-muted-foreground" />}
                 <span className={`truncate ${depth === 0 ? "font-semibold" : "font-medium"}`}>
-                  {n.code && /^\d/.test(n.code) ? `${n.code}. ` : n.code ? `${n.code} — ` : ""}
+                  {n.code && /^\d+$/.test(n.code) ? `${n.code}. ` : n.code && /^\d/.test(n.code) ? `${n.code} ` : n.code ? `${n.code} — ` : ""}
                   {n.title}
                 </span>
               </button>
@@ -324,6 +342,7 @@ function PlanView({ plan, today }: { plan: Plan; today: string }) {
       {error && <p role="alert" className="mb-2 rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
 
       <ul className="space-y-0.5">{renderNodes(tree, 0)}</ul>
+      {items.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">Plano vazio: clique em “+ Adicionar” para criar o primeiro tema.</p>}
       {filtering && !tree.some(visible) && <p className="py-6 text-center text-sm text-muted-foreground">Nada com esse filtro.</p>}
 
       {schedule && <ScheduleDialog item={schedule} today={today} onClose={() => setSchedule(null)} />}
@@ -411,33 +430,43 @@ function ScheduleDialog({ item, today, onClose }: { item: Item; today: string; o
   );
 }
 
-function PlanDialog({ plan, onClose }: { plan: Plan; onClose: () => void }) {
-  const [name, setName] = useState(plan.name);
-  const [objective, setObjective] = useState(plan.objective ?? "");
-  const [color, setColor] = useState<EventColor>((plan.color as EventColor) ?? "violet");
+/** plan = null: criar um plano vazio (os temas e conteúdos entram depois pelo “+ Adicionar”). */
+function PlanDialog({ plan, onClose, onCreated }: { plan: Plan | null; onClose: () => void; onCreated?: (id: string) => void }) {
+  const [name, setName] = useState(plan?.name ?? "");
+  const [objective, setObjective] = useState(plan?.objective ?? "");
+  const [color, setColor] = useState<EventColor>((plan?.color as EventColor) ?? "violet");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
     startTransition(async () => {
-      const r = await updateStudyPlan({ id: plan.id, name, objective, color });
-      if (r.ok) onClose();
-      else setError(r.error);
+      if (plan) {
+        const r = await updateStudyPlan({ id: plan.id, name, objective, color });
+        if (r.ok) onClose();
+        else setError(r.error);
+        return;
+      }
+      // plano novo = importação sem conteúdos
+      const r = await importStudyPlans({ fileName: "", plans: [{ name, color, nodes: [], targetPlanId: null }] });
+      if (r.ok && r.planIds?.[0]) onCreated?.(r.planIds[0]);
+      else setError(r.ok ? "Não foi possível criar o plano." : r.error);
     });
   }
 
   return (
-    <Modal title="Editar plano" onClose={onClose}>
+    <Modal title={plan ? "Editar plano" : "Novo plano"} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
         <div>
           <label htmlFor="plname" className={labelCls}>Nome</label>
-          <input id="plname" className={inputCls} value={name} onChange={(e) => setName(e.target.value)} required maxLength={120} autoFocus />
+          <input id="plname" className={inputCls} value={name} onChange={(e) => setName(e.target.value)} required maxLength={120} autoFocus placeholder={plan ? undefined : "Ex.: Microeconomia"} />
         </div>
-        <div>
-          <label htmlFor="plobj" className={labelCls}>Objetivo (opcional)</label>
-          <textarea id="plobj" rows={2} className={inputCls} value={objective} onChange={(e) => setObjective(e.target.value)} maxLength={1000} placeholder="Ex.: passar na ANPEC 2027" />
-        </div>
+        {plan && (
+          <div>
+            <label htmlFor="plobj" className={labelCls}>Objetivo (opcional)</label>
+            <textarea id="plobj" rows={2} className={inputCls} value={objective} onChange={(e) => setObjective(e.target.value)} maxLength={1000} placeholder="Ex.: passar na ANPEC 2027" />
+          </div>
+        )}
         <div className="flex gap-2">
           {(Object.keys(EVENT_COLORS) as EventColor[]).map((c) => (
             <button key={c} type="button" aria-label={EVENT_COLORS[c].label} aria-pressed={color === c} onClick={() => setColor(c)} className={`size-7 rounded-full ring-offset-2 ring-offset-[var(--card)] ${color === c ? "ring-2 ring-foreground" : ""}`} style={{ backgroundColor: EVENT_COLORS[c].hex }} />
@@ -446,7 +475,7 @@ function PlanDialog({ plan, onClose }: { plan: Plan; onClose: () => void }) {
         {error && <p role="alert" className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
         <div className="flex justify-end gap-2">
           <button type="button" onClick={onClose} className={secondaryBtn}>Cancelar</button>
-          <button type="submit" disabled={pending} className={primaryBtn}>{pending ? "Salvando…" : "Salvar"}</button>
+          <button type="submit" disabled={pending} className={primaryBtn}>{pending ? "Salvando…" : plan ? "Salvar" : "Criar plano"}</button>
         </div>
       </form>
     </Modal>

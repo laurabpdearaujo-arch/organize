@@ -12,6 +12,10 @@
  *      "Módulo II — Título" ou linha sem número    → tema
  *      "Módulo I: … concluído …"                    → tema já concluído
  *      "1. Aula — 45:18"                            → aula (duração em minutos)
+ *  - Ementas com numeração em níveis (ex.: "anpec ementa"), com ou sem "•":
+ *      "1. Matemática" / "1.1 Matemática Básica" / "• 1.1.1 Potenciação"
+ *      → a quantidade de números diz o nível (1.1.1 fica dentro de 1.1, que fica dentro de 1).
+ *      Sem PARTE e com 3 níveis ou mais, cada item do 1º nível vira um plano.
  */
 
 export type OutlineNode = {
@@ -32,6 +36,7 @@ const MODULE_DASH_RE = /^(M[óo]dulo\s+[IVXLC\d]+)\s*[—–-]\s*(.+)$/i;
 const MODULE_COLON_RE = /^(M[óo]dulo\s+[IVXLC\d]+)\s*:\s*(.+)$/i;
 const BULLET_RE = /^[•·▪●◦]\s*(\d+)\.\s+(.+)$/;
 const NUMBERED_RE = /^(\d+)\.\s+(.+)$/;
+const CODE_RE = /^(?:[•·▪●◦]\s*)?(\d+(?:\.\d+)*)\.?\s+(\S.*)$/; // "1. X", "1.1 X", "• 1.1.1 X"
 const FOOTER_RE = /P[áa]gina\s+\d+(\s+de\s+\d+)?\s*$/i;
 const DURATION_RE = /\s[—–-]\s*((\d{1,2}):)?(\d{1,2}):(\d{2})\s*$/;
 
@@ -104,10 +109,60 @@ function bullet(n: string, text: string): OutlineNode {
   return top;
 }
 
+/** Ementa numerada em níveis: monta a árvore pelos códigos (1.1.1 dentro de 1.1 dentro de 1). */
+function parseNumbered(lines: string[], fallbackName: string, hasParts: boolean): { plans: OutlinePlan[]; warnings: string[] } {
+  const warnings: string[] = [];
+  const chunks: { name: string; roots: OutlineNode[] }[] = hasParts ? [] : [{ name: fallbackName, roots: [] }];
+  let byCode = new Map<string, OutlineNode>();
+  for (const l of lines) {
+    const p = hasParts ? PART_RE.exec(l) : null;
+    if (p) {
+      chunks.push({ name: cleanTitle(p[2]), roots: [] });
+      byCode = new Map();
+      continue;
+    }
+    const chunk = chunks.at(-1);
+    if (!chunk) continue; // introdução antes da primeira PARTE
+    const m = CODE_RE.exec(l);
+    if (!m) {
+      // antes do primeiro código é introdução; depois, a linha aparece na revisão
+      if (chunk.roots.length) warnings.push(`Linha não reconhecida em “${chunk.name}”: ${l.slice(0, 80)}`);
+      continue;
+    }
+    const code = m[1];
+    const n = lesson(code, m[2]);
+    byCode.set(code, n);
+    // pai = código sem o último número; se ele não existir no PDF, sobe mais um nível
+    let parent: OutlineNode | undefined;
+    for (let c = code; !parent && c.includes("."); ) {
+      c = c.slice(0, c.lastIndexOf("."));
+      parent = byCode.get(c);
+    }
+    (parent ? parent.children : chunk.roots).push(n);
+  }
+
+  const plans: OutlinePlan[] = [];
+  for (const chunk of chunks) {
+    const deep = chunk.roots.some((r) => r.children.some((c) => c.children.length > 0));
+    if (!hasParts && deep) {
+      // "1. Matemática" → plano Matemática, com os temas 1.1, 1.2… dentro
+      for (const r of chunk.roots) plans.push({ name: r.title, nodes: r.children });
+    } else {
+      plans.push({ name: chunk.name, nodes: chunk.roots });
+    }
+  }
+  return { plans, warnings };
+}
+
 /** Recebe as linhas de texto do PDF (na ordem de leitura) e devolve os planos. */
 export function parseOutline(rawLines: string[], fallbackName = "Plano de estudos"): { plans: OutlinePlan[]; warnings: string[] } {
   const lines = rawLines.map((l) => l.replace(/\s+/g, " ").trim()).filter((l) => l && !FOOTER_RE.test(l));
   const hasParts = lines.some((l) => PART_RE.test(l));
+
+  // Ementa numerada em níveis (1.1, 1.1.1 no começo da linha). O formato com "• 1." (ANPEC antigo)
+  // também tem "3.3 …" no começo de linhas quebradas, então ele continua no leitor abaixo.
+  const leveled = lines.filter((l) => CODE_RE.exec(l)?.[1].includes(".")).length >= 3; // não por um "2.5" solto
+  if (leveled && !lines.some((l) => BULLET_RE.test(l))) return parseNumbered(lines, fallbackName, hasParts);
 
   // Agrupa as linhas por PARTE (o que vem antes da primeira PARTE é introdução e é ignorado).
   const chunks: { name: string; lines: string[] }[] = [];
