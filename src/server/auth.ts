@@ -42,7 +42,17 @@ async function loadUser(): Promise<CurrentUser> {
 
   let [profile] = await db.select().from(profiles).where(eq(profiles.userId, userId));
   if (!profile) {
-    [profile] = await db.insert(profiles).values({ userId }).onConflictDoNothing().returning();
+    try {
+      [profile] = await db.insert(profiles).values({ userId }).onConflictDoNothing().returning();
+    } catch (err) {
+      // Conta apagada (painel do Supabase) com o token ainda dentro da validade: o perfil sumiu em
+      // cascata e não pode ser recriado. Encerra a sessão (apaga o cookie) e a tela vai para o login.
+      if (isForeignKeyViolation(err)) {
+        await supabase.auth.signOut({ scope: "local" });
+        throw new Unauthorized();
+      }
+      throw err;
+    }
     profile ??= (await db.select().from(profiles).where(eq(profiles.userId, userId)))[0];
   }
 
@@ -53,4 +63,9 @@ async function loadUser(): Promise<CurrentUser> {
     timezone: profile.timezone,
     currency: profile.currency,
   };
+}
+
+function isForeignKeyViolation(err: unknown) {
+  const e = err as { code?: string; cause?: { code?: string } } | null;
+  return e?.code === "23503" || e?.cause?.code === "23503";
 }

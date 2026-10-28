@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import app from "./app";
+import { pageGate } from "./page-gate";
 
 /*
  * Servidor de produção: a API (/api) e a tela já compilada (dist/web).
@@ -16,6 +17,8 @@ server.use("/assets/*", async (c, next) => {
   await next();
   if (c.res.ok) c.header("Cache-Control", "public, max-age=31536000, immutable");
 });
+// Sem sessão, as páginas vão direto para o login (page-gate.ts)
+server.use("*", pageGate);
 server.use("*", serveStatic({ root: WEB_ROOT }));
 server.get("*", serveStatic({ path: `${WEB_ROOT}/index.html` }));
 

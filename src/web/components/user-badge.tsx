@@ -5,14 +5,18 @@ import { ThemeToggle } from "./theme-toggle";
 
 export function UserBadge() {
   const user = useMe();
-  if (!user) return <div className="h-9 animate-pulse rounded bg-muted" />;
 
+  // "Sair" aparece mesmo enquanto (ou se) os dados da conta não carregam: nunca fica preso sem saída.
   return (
     <div className="flex items-center gap-1">
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{user.name}</p>
-        <p className="truncate text-xs text-muted-foreground">{user.email}</p>
-      </div>
+      {user ? (
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium">{user.name}</p>
+          <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+        </div>
+      ) : (
+        <div className="h-9 flex-1 animate-pulse rounded bg-muted" />
+      )}
       <ThemeToggle />
       <button
         type="button"
